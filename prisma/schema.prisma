@@ -1,0 +1,188 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-1.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Asset {
+  id               String        @id @default(cuid())
+  ticker           String        @unique
+  name             String
+  assetClass       AssetClass
+  sector           String?
+  region           String?
+  currency         String        @default("USD")
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  indicators       Indicator[]
+  priceData        PriceData[]
+  rotationLogsFrom RotationLog[] @relation("RotationFrom")
+  rotationLogsTo   RotationLog[] @relation("RotationTo")
+  signals          Signal[]
+
+  @@index([assetClass])
+  @@index([sector])
+  @@index([isActive])
+}
+
+model PriceData {
+  id        String   @id @default(cuid())
+  assetId   String
+  timestamp DateTime
+  open      Float
+  high      Float
+  low       Float
+  close     Float
+  volume    Float?
+  adjClose  Float?
+  source    String?
+  createdAt DateTime @default(now())
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, timestamp])
+  @@index([assetId])
+  @@index([timestamp])
+  @@index([assetId, timestamp])
+}
+
+model Indicator {
+  id         String   @id @default(cuid())
+  assetId    String
+  name       String
+  value      Float
+  timestamp  DateTime
+  period     Int?
+  parameters Json?
+  createdAt  DateTime @default(now())
+  asset      Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, name, timestamp])
+  @@index([assetId])
+  @@index([name])
+  @@index([timestamp])
+}
+
+model Signal {
+  id          String          @id @default(cuid())
+  assetId     String
+  direction   SignalDirection
+  strength    SignalStrength
+  confidence  Float
+  source      String
+  rationale   String?
+  entryPrice  Float?
+  targetPrice Float?
+  stopLoss    Float?
+  riskReward  Float?
+  expiresAt   DateTime?
+  isActive    Boolean         @default(true)
+  triggeredAt DateTime        @default(now())
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  asset       Asset           @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+  @@index([direction])
+  @@index([isActive])
+  @@index([triggeredAt])
+}
+
+model RotationLog {
+  id               String     @id @default(cuid())
+  fromAssetId      String?
+  toAssetId        String?
+  regime           RegimeType
+  allocationPct    Float
+  notionalValue    Float?
+  rationale        String?
+  momentum         Float?
+  relativeStrength Float?
+  executedAt       DateTime   @default(now())
+  createdAt        DateTime   @default(now())
+  fromAsset        Asset?     @relation("RotationFrom", fields: [fromAssetId], references: [id])
+  toAsset          Asset?     @relation("RotationTo", fields: [toAssetId], references: [id])
+
+  @@index([fromAssetId])
+  @@index([toAssetId])
+  @@index([regime])
+  @@index([executedAt])
+}
+
+model AIInsight {
+  id             String      @id @default(cuid())
+  type           InsightType
+  title          String
+  summary        String
+  content        String
+  modelUsed      String
+  promptTokens   Int?
+  outputTokens   Int?
+  regime         RegimeType?
+  confidence     Float?
+  tags           String[]
+  relatedTickers String[]
+  isPublished    Boolean     @default(false)
+  generatedAt    DateTime    @default(now())
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([type])
+  @@index([regime])
+  @@index([isPublished])
+  @@index([generatedAt])
+}
+
+enum AssetClass {
+  EQUITY
+  FIXED_INCOME
+  COMMODITY
+  CURRENCY
+  CRYPTO
+  REAL_ESTATE
+  ALTERNATIVE
+}
+
+enum SignalDirection {
+  BULLISH
+  BEARISH
+  NEUTRAL
+}
+
+enum SignalStrength {
+  STRONG
+  MODERATE
+  WEAK
+}
+
+enum RegimeType {
+  RISK_ON
+  RISK_OFF
+  STAGFLATION
+  DEFLATION
+  RECOVERY
+  EXPANSION
+  CONTRACTION
+  UNKNOWN
+}
+
+model SystemConfig {
+  key       String   @id
+  value     String   @db.Text
+  meta      String?  @db.Text  // JSON string for extra data (e.g. expiry timestamp)
+  updatedAt DateTime @updatedAt
+}
+
+enum InsightType {
+  MARKET_OVERVIEW
+  ROTATION_SIGNAL
+  RISK_ALERT
+  OPPORTUNITY
+  MACRO_ANALYSIS
+  SECTOR_ANALYSIS
+}
