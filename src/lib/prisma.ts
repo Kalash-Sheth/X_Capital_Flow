@@ -1,18 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 
-// Append NeonDB-friendly pool settings to the connection URL:
-//   connection_limit=1  — one connection per serverless instance (avoids pool exhaustion)
-//   pool_timeout=0      — don't queue waiting for a free connection; open a new one
-//   connect_timeout=10  — fail fast on a dead socket so Prisma reconnects immediately
-function buildDatasourceUrl(): string {
-  const base = process.env.DATABASE_URL ?? '';
-  const sep  = base.includes('?') ? '&' : '?';
-  return `${base}${sep}connection_limit=1&pool_timeout=0&connect_timeout=10`;
-}
-
 function makePrismaClient() {
   return new PrismaClient({
-    datasourceUrl: buildDatasourceUrl(),
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   });
 }

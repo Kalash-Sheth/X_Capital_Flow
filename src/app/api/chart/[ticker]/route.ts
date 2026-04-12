@@ -38,6 +38,8 @@ export interface OrderBlock {
   active: boolean;
 }
 
+export const dynamic = "force-dynamic";
+
 export interface ChartData {
   ticker:           string;
   name:             string;
