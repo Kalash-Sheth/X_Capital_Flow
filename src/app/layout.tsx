@@ -78,17 +78,17 @@ export default function RootLayout({
       <body className="antialiased">
         {/* ── App shell ────────────────────────────────────────────────── */}
         <div className="flex h-screen w-screen overflow-hidden bg-[#F7F6F2]">
-          {/* Fixed sidebar (240 px wide, full height) */}
+          {/* Fixed sidebar — hidden on mobile, visible md+ */}
           <Sidebar />
 
-          {/* Main content area — offset by sidebar width */}
-          <div className="flex flex-1 flex-col overflow-hidden pl-[240px]">
+          {/* Main content area — no left offset on mobile, offset on md+ */}
+          <div className="flex flex-1 flex-col overflow-hidden md:pl-[240px]">
             {/* Sticky top header */}
             <Header />
 
             {/* Scrollable page content */}
             <main className="flex-1 overflow-y-auto overflow-x-hidden">
-              <div className="min-h-full p-6">
+              <div className="min-h-full p-3 sm:p-6 pb-20 md:pb-6">
                 {children}
               </div>
             </main>

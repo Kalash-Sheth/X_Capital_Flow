@@ -211,7 +211,7 @@ function ClassCard({ cls, idx, onClick }: { cls: AssetClassData; idx: number; on
       className="w-full text-left bg-white rounded-2xl border border-slate-100 hover:border-slate-200 hover:shadow-lg transition-all duration-200 overflow-hidden group"
     >
       <div className="h-[2px]" style={{ background: `linear-gradient(90deg, ${s.hex}, ${s.hex2})` }} />
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="flex items-start justify-between mb-5">
           <div className="flex items-center gap-3">
             <span className="text-2xl">{cls.icon}</span>
@@ -270,7 +270,7 @@ function AssetRow({ asset, idx, onClick }: { asset: AssetData; idx: number; onCl
       animate={{ opacity: 1, x: 0, transition: { delay: idx * 0.04, duration: 0.32 } }}
       onClick={onClick}
       disabled={!asset.hasData}
-      className={`w-full text-left flex items-center gap-4 px-5 py-4 rounded-xl border transition-all group ${
+      className={`w-full text-left flex items-center gap-3 sm:gap-4 px-3 sm:px-5 py-3 sm:py-4 rounded-xl border transition-all group ${
         asset.hasData
           ? "bg-white border-slate-100 hover:border-slate-200 hover:shadow-md cursor-pointer"
           : "bg-slate-50 border-slate-100 opacity-40 cursor-not-allowed"
@@ -513,6 +513,8 @@ function AssetDashboard({ asset, cls, allAssets }: {
   });
   const [activeCat,   setActiveCat]   = useState<IndicatorCategory | "All">("All");
   const [showRanking, setShowRanking] = useState(false);
+  const [chartH,      setChartH]      = useState(480);
+  useEffect(() => { setChartH(window.innerWidth < 640 ? 300 : 480); }, []);
 
   const toggle = useCallback((k: keyof ChartOverlays) =>
     setOverlays((p) => ({ ...p, [k]: !p[k] })), []);
@@ -565,14 +567,14 @@ function AssetDashboard({ asset, cls, allAssets }: {
         <div className="h-[1.5px]"
           style={{ background: `linear-gradient(90deg, transparent 5%, ${s.hex} 35%, ${s.hex2} 65%, transparent 95%)` }} />
 
-        <div className="relative px-7 py-6">
-          <div className="flex items-start justify-between gap-8 flex-wrap">
+        <div className="relative px-4 sm:px-7 py-4 sm:py-6">
+          <div className="flex items-start justify-between gap-4 sm:gap-8 flex-wrap">
 
             {/* Identity + price */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 mb-4 flex-wrap">
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4 flex-wrap">
                 <span className="text-2xl">{cls.icon}</span>
-                <h2 className="text-xl font-black text-white tracking-tight">{asset.name}</h2>
+                <h2 className="text-base sm:text-xl font-black text-white tracking-tight">{asset.name}</h2>
                 <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full"
                   style={{ background: `${s.hex}20`, color: s.hex, border: `1px solid ${s.hex}35` }}>
                   <span className="w-1.5 h-1.5 rounded-full" style={{ background: s.hex }} />
@@ -584,11 +586,11 @@ function AssetDashboard({ asset, cls, allAssets }: {
                 </span>
               </div>
 
-              <div className="flex items-baseline gap-4 mb-5">
-                <span className="text-[40px] font-black text-white tabular-nums tracking-tight leading-none">
+              <div className="flex items-baseline gap-3 sm:gap-4 mb-4 sm:mb-5">
+                <span className="text-[28px] sm:text-[40px] font-black text-white tabular-nums tracking-tight leading-none">
                   {asset.close.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
                 </span>
-                <span className={`text-lg font-black tabular-nums ${asset.change1d >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                <span className={`text-base sm:text-lg font-black tabular-nums ${asset.change1d >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                   {asset.change1d >= 0 ? "+" : ""}{asset.change1d.toFixed(2)}%
                 </span>
               </div>
@@ -616,12 +618,12 @@ function AssetDashboard({ asset, cls, allAssets }: {
             </div>
 
             {/* Score + indicator stats */}
-            <div className="flex items-center gap-7 flex-shrink-0">
+            <div className="flex items-center gap-4 sm:gap-7 flex-shrink-0">
               <div className="flex flex-col items-center gap-2">
-                <Arc value={asset.score.composite} size={84} color={s.hex} track="rgba(255,255,255,0.07)" />
+                <Arc value={asset.score.composite} size={72} color={s.hex} track="rgba(255,255,255,0.07)" />
                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.15em]">Score</span>
               </div>
-              <div className="border-l border-white/10 pl-7 space-y-2.5">
+              <div className="border-l border-white/10 pl-4 sm:pl-7 space-y-2.5">
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-[26px] font-black text-emerald-400 tabular-nums leading-none">{bullCount}</span>
                   <span className="text-[11px] text-slate-500">bullish</span>
@@ -666,13 +668,13 @@ function AssetDashboard({ asset, cls, allAssets }: {
       </motion.div>
 
       {/* ── 2-col layout ──────────────────────────────────────────────────── */}
-      <div className="flex gap-5 items-start">
+      <div className="flex flex-col lg:flex-row gap-4 sm:gap-5 items-start">
 
         {/* LEFT: chart + peer ranking */}
         <div className="flex-1 min-w-0 space-y-4">
 
           {/* Chart controls */}
-          <div className="bg-white rounded-xl border border-slate-100 px-4 py-3 flex items-center gap-3 flex-wrap shadow-sm">
+          <div className="bg-white rounded-xl border border-slate-100 px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-3 flex-wrap shadow-sm">
             {/* Type toggle */}
             <div className="flex items-center gap-0.5 bg-slate-50 rounded-lg p-0.5">
               {(["candle", "ha"] as const).map((t) => (
@@ -742,9 +744,9 @@ function AssetDashboard({ asset, cls, allAssets }: {
             </div>
 
             {/* Chart body */}
-            <div style={{ minHeight: 480 }}>
+            <div style={{ minHeight: chartH }}>
               {chartLoading && (
-                <div className="flex items-center justify-center" style={{ height: 480 }}>
+                <div className="flex items-center justify-center" style={{ height: chartH }}>
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-8 h-8 border-2 border-slate-100 border-t-indigo-500 rounded-full animate-spin" />
                     <span className="text-xs text-slate-400 font-medium">Loading chart…</span>
@@ -752,7 +754,7 @@ function AssetDashboard({ asset, cls, allAssets }: {
                 </div>
               )}
               {!chartLoading && !chart && (
-                <div className="flex items-center justify-center" style={{ height: 480 }}>
+                <div className="flex items-center justify-center" style={{ height: chartH }}>
                   <div className="text-center">
                     <BarChart2 size={40} className="text-slate-100 mx-auto mb-3" />
                     <p className="text-sm text-slate-400">No chart data available</p>
@@ -761,11 +763,11 @@ function AssetDashboard({ asset, cls, allAssets }: {
               )}
               {chart && !chartLoading && (
                 <Suspense fallback={
-                  <div className="flex items-center justify-center" style={{ height: 480 }}>
+                  <div className="flex items-center justify-center" style={{ height: chartH }}>
                     <div className="w-7 h-7 border-2 border-slate-100 border-t-indigo-500 rounded-full animate-spin" />
                   </div>
                 }>
-                  <TradingChart data={chart} overlays={overlays} chartType={chartType} height={480} />
+                  <TradingChart data={chart} overlays={overlays} chartType={chartType} height={chartH} />
                 </Suspense>
               )}
             </div>
@@ -876,7 +878,7 @@ function AssetDashboard({ asset, cls, allAssets }: {
         </div>
 
         {/* RIGHT: decision engine + category scores */}
-        <div className="hidden lg:flex flex-col w-80 flex-shrink-0 space-y-4">
+        <div className="flex flex-col w-full lg:w-80 flex-shrink-0 space-y-4">
 
           {/* Decision Engine */}
           <DecisionEngine asset={asset} chart={chart} />
@@ -1269,28 +1271,28 @@ function VixModal({ vix, onClose }: { vix: VixResponse; onClose: () => void }) {
       transition={{ duration: 0.15 }}
     >
       {/* ══ HEADER ══ */}
-      <div className="flex-shrink-0 px-6 py-3 flex items-center gap-6 border-b border-slate-100"
+      <div className="flex-shrink-0 px-3 sm:px-6 py-3 flex items-center gap-3 sm:gap-6 border-b border-slate-100 flex-wrap"
         style={{ background: zone.bgColor }}>
 
         {/* VIX value block */}
-        <div className="flex items-center gap-3">
-          <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center bg-white shadow-sm flex-shrink-0"
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex flex-col items-center justify-center bg-white shadow-sm flex-shrink-0"
             style={{ border: `2px solid ${zone.color}45` }}>
-            <span className="text-lg font-black leading-none tabular-nums" style={{ color: zone.color }}>{current.toFixed(1)}</span>
+            <span className="text-base sm:text-lg font-black leading-none tabular-nums" style={{ color: zone.color }}>{current.toFixed(1)}</span>
             <span className="text-[8px] font-bold text-slate-400 mt-0.5 tracking-widest">VIX</span>
           </div>
-          <div>
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-lg font-black text-slate-900">India VIX</span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 mb-0.5 flex-wrap">
+              <span className="text-base sm:text-lg font-black text-slate-900">India VIX</span>
               <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full" style={{ background: zone.color, color: "#fff" }}>{zone.label}</span>
               <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-slate-900 text-white">Monthly</span>
               <span className="text-sm font-bold tabular-nums" style={{ color: change1d >= 0 ? "#ef4444" : "#10b981" }}>
                 {change1d >= 0 ? "+" : ""}{change1d.toFixed(2)}%
               </span>
-              <span className="text-xs font-bold" style={{ color: trendColor }}>{trendIcon} {trend}</span>
+              <span className="hidden sm:inline text-xs font-bold" style={{ color: trendColor }}>{trendIcon} {trend}</span>
             </div>
-            {/* Context pills */}
-            <div className="flex items-center gap-1.5">
+            {/* Context pills — hidden on mobile */}
+            <div className="hidden sm:flex items-center gap-1.5">
               <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-white/70 border border-slate-200 text-slate-600">
                 {context.percentileRank}th pct
               </span>
@@ -1313,8 +1315,8 @@ function VixModal({ vix, onClose }: { vix: VixResponse; onClose: () => void }) {
           </div>
         </div>
 
-        {/* Signal */}
-        <div className="flex-1 flex items-center justify-center">
+        {/* Signal — hidden on mobile */}
+        <div className="hidden sm:flex flex-1 items-center justify-center">
           <div className="text-center">
             <p className="text-[8px] font-black tracking-widest uppercase text-slate-400 mb-1">Signal</p>
             <p className="text-base font-black" style={{ color: signalColor }}>{signal.label}</p>
@@ -1339,10 +1341,10 @@ function VixModal({ vix, onClose }: { vix: VixResponse; onClose: () => void }) {
       </div>
 
       {/* ══ BODY ══ */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
+      <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden min-h-0">
 
         {/* ── Chart column ── */}
-        <div className="flex-1 flex flex-col px-5 pt-3 pb-3 gap-2 min-w-0">
+        <div className="h-[45vh] md:h-auto md:flex-1 flex-shrink-0 md:flex-shrink flex flex-col px-3 sm:px-5 pt-3 pb-3 gap-2 min-w-0">
           <p className="text-[10px] font-black tracking-widest uppercase text-slate-400 flex-shrink-0">
             Nifty 50 × India VIX &nbsp;·&nbsp; Monthly · Linked
           </p>
@@ -1356,7 +1358,7 @@ function VixModal({ vix, onClose }: { vix: VixResponse; onClose: () => void }) {
         </div>
 
         {/* ── Right panel ── */}
-        <div className="w-72 flex-shrink-0 border-l border-slate-100 flex flex-col overflow-y-auto bg-slate-50/40">
+        <div className="w-full md:w-72 flex-shrink-0 border-t md:border-t-0 md:border-l border-slate-100 flex flex-col overflow-y-auto bg-slate-50/40">
 
           {/* Crosshair card */}
           <div className="m-4 mb-0 rounded-xl border overflow-hidden flex-shrink-0"
@@ -1840,25 +1842,25 @@ function RsiModal({ data, onClose }: { data: RsiResponse; onClose: () => void })
       transition={{ duration: 0.15 }}>
 
       {/* ── Header ── */}
-      <div className="flex-shrink-0 px-6 py-3 flex items-center gap-5 border-b border-slate-100"
+      <div className="flex-shrink-0 px-3 sm:px-6 py-3 flex items-center gap-3 sm:gap-5 border-b border-slate-100 flex-wrap"
         style={{ background: zone.bgColor }}>
-        <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center bg-white shadow-sm flex-shrink-0"
+        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex flex-col items-center justify-center bg-white shadow-sm flex-shrink-0"
           style={{ border: `2px solid ${zone.color}45` }}>
-          <span className="text-lg font-black leading-none tabular-nums" style={{ color: zone.color }}>{currentRsi.toFixed(1)}</span>
+          <span className="text-base sm:text-lg font-black leading-none tabular-nums" style={{ color: zone.color }}>{currentRsi.toFixed(1)}</span>
           <span className="text-[8px] font-bold text-slate-400 mt-0.5 tracking-widest">RSI</span>
         </div>
-        <div>
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-lg font-black text-slate-900">Nifty RSI Extremes</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+            <span className="text-base sm:text-lg font-black text-slate-900">Nifty RSI Extremes</span>
             <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full" style={{ background: zone.color, color: "#fff" }}>{zone.label}</span>
             <span className="text-sm font-bold tabular-nums" style={{ color: changeColor }}>
               {change >= 0 ? "+" : ""}{change.toFixed(2)} pts
             </span>
           </div>
-          <p className="text-xs text-slate-500 max-w-xl">{signal.rationale}</p>
+          <p className="hidden sm:block text-xs text-slate-500 line-clamp-2">{signal.rationale}</p>
         </div>
-        <div className="ml-auto flex items-center gap-4">
-          <div className="text-center">
+        <div className="ml-auto flex items-center gap-3 sm:gap-4">
+          <div className="hidden sm:block text-center">
             <p className="text-[8px] font-black tracking-widest uppercase text-slate-400 mb-1">Signal</p>
             <p className="text-sm font-black" style={{ color: zone.color }}>{signal.label}</p>
             <div className="flex items-center gap-1.5 mt-1 justify-center">
@@ -1878,10 +1880,10 @@ function RsiModal({ data, onClose }: { data: RsiResponse; onClose: () => void })
       </div>
 
       {/* ── Body ── */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
+      <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden min-h-0">
 
         {/* Chart */}
-        <div className="flex-1 flex flex-col px-5 pt-4 pb-3 min-w-0">
+        <div className="h-[45vh] md:h-auto md:flex-1 flex-shrink-0 md:flex-shrink flex flex-col px-3 sm:px-5 pt-4 pb-3 min-w-0">
           <p className="text-[10px] font-black tracking-widest uppercase text-slate-400 mb-3 flex-shrink-0">
             Nifty 50 × RSI(14) · Monthly · Extreme Zone Analysis
           </p>
@@ -1891,7 +1893,7 @@ function RsiModal({ data, onClose }: { data: RsiResponse; onClose: () => void })
           </div>
 
           {/* Zone legend */}
-          <div className="flex-shrink-0 mt-3 flex items-center gap-2">
+          <div className="flex-shrink-0 mt-2 flex items-center gap-1.5 flex-wrap">
             {[
               { range: "< 30", label: "Extreme Oversold", color: "#10b981" },
               { range: "30–40", label: "Oversold", color: "#f59e0b" },
@@ -1899,17 +1901,17 @@ function RsiModal({ data, onClose }: { data: RsiResponse; onClose: () => void })
               { range: "70–80", label: "Elevated", color: "#f97316" },
               { range: "> 80",  label: "Extreme", color: "#ef4444" },
             ].map(({ range, label, color }) => (
-              <div key={label} className="flex-1 rounded-lg px-2 py-1.5 text-center border"
+              <div key={label} className="flex-1 min-w-[4rem] rounded-lg px-1.5 py-1 text-center border"
                 style={{ background: `${color}0d`, borderColor: `${color}30` }}>
                 <p className="text-[9px] font-black tabular-nums" style={{ color }}>{range}</p>
-                <p className="text-[8px] text-slate-500 font-bold mt-0.5">{label}</p>
+                <p className="hidden sm:block text-[8px] text-slate-500 font-bold mt-0.5">{label}</p>
               </div>
             ))}
           </div>
         </div>
 
         {/* Right panel */}
-        <div className="w-72 flex-shrink-0 border-l border-slate-100 bg-slate-50/40 flex flex-col overflow-y-auto">
+        <div className="w-full md:w-72 flex-shrink-0 border-t md:border-t-0 md:border-l border-slate-100 bg-slate-50/40 flex flex-col overflow-y-auto">
 
           {/* Signal card */}
           <div className="m-4 mb-0 rounded-xl border border-slate-200 bg-white p-4">
@@ -2384,27 +2386,27 @@ function RocModal({ data: initialData, onClose }: { data: RocResponse; onClose: 
       transition={{ duration: 0.15 }}>
 
       {/* ── Header ── */}
-      <div className="flex-shrink-0 px-6 py-3 flex items-center gap-5 border-b border-slate-100"
+      <div className="flex-shrink-0 px-3 sm:px-6 py-3 flex items-center gap-3 sm:gap-5 border-b border-slate-100 flex-wrap"
         style={{ background: zone.bgColor }}>
-        <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center bg-white shadow-sm flex-shrink-0"
+        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex flex-col items-center justify-center bg-white shadow-sm flex-shrink-0"
           style={{ border: `2px solid ${zone.color}45` }}>
           {isLoading ? (
             <div className="w-5 h-5 rounded-full border-2 border-slate-200 border-t-slate-500 animate-spin" />
           ) : (
             <>
-              <span className="text-base font-black leading-none tabular-nums" style={{ color: zone.color }}>
+              <span className="text-sm sm:text-base font-black leading-none tabular-nums" style={{ color: zone.color }}>
                 {currentRoc >= 0 ? "+" : ""}{currentRoc.toFixed(0)}%
               </span>
               <span className="text-[8px] font-bold text-slate-400 mt-0.5 tracking-widest">ROC</span>
             </>
           )}
         </div>
-        <div>
-          {/* Index dropdown */}
-          <div className="flex items-center gap-1.5 mb-1.5">
+        <div className="flex-1 min-w-0">
+          {/* Index selector */}
+          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
             {ROC_INDICES.map((idx) => (
               <button key={idx.key} onClick={() => setSelectedIndex(idx.key)}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-black transition-all"
+                className="px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-black transition-all"
                 style={selectedIndex === idx.key
                   ? { background: zone.color, color: "#fff" }
                   : { background: "#f1f5f9", color: "#64748b" }}>
@@ -2412,22 +2414,21 @@ function RocModal({ data: initialData, onClose }: { data: RocResponse; onClose: 
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-lg font-black text-slate-900">18M Rate of Change</span>
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+            <span className="text-base sm:text-lg font-black text-slate-900">18M Rate of Change</span>
             <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full" style={{ background: zone.color, color: "#fff" }}>{zone.label}</span>
             <span className="text-sm font-bold tabular-nums" style={{ color: changeColor }}>
               {change >= 0 ? "+" : ""}{change.toFixed(2)} pts
             </span>
           </div>
-          <p className="text-xs text-slate-500 max-w-xl">{signal.rationale}</p>
+          <p className="hidden sm:block text-xs text-slate-500 line-clamp-2">{signal.rationale}</p>
         </div>
-        <div className="ml-auto flex items-center gap-4">
-          {/* Percentile pill */}
-          <div className="text-center">
+        <div className="ml-auto flex items-center gap-2 sm:gap-4">
+          <div className="hidden sm:block text-center">
             <p className="text-[8px] font-black tracking-widest uppercase text-slate-400 mb-1">Percentile</p>
             <p className="text-sm font-black" style={{ color: zone.color }}>{percentileRank}th</p>
           </div>
-          <div className="text-center">
+          <div className="hidden sm:block text-center">
             <p className="text-[8px] font-black tracking-widest uppercase text-slate-400 mb-1">Signal</p>
             <p className="text-sm font-black" style={{ color: zone.color }}>{signal.label}</p>
             <div className="flex items-center gap-1.5 mt-1 justify-center">
@@ -2447,10 +2448,10 @@ function RocModal({ data: initialData, onClose }: { data: RocResponse; onClose: 
       </div>
 
       {/* ── Body ── */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
+      <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden min-h-0">
 
         {/* Chart */}
-        <div className="flex-1 flex flex-col px-5 pt-4 pb-3 min-w-0">
+        <div className="h-[45vh] md:h-auto md:flex-1 flex-shrink-0 md:flex-shrink flex flex-col px-3 sm:px-5 pt-4 pb-3 min-w-0">
           <p className="text-[10px] font-black tracking-widest uppercase text-slate-400 mb-3 flex-shrink-0">
             {ROC_INDICES.find((i) => i.key === selectedIndex)?.label ?? "Nifty 50"} × 18M ROC · Monthly · Extreme Zone Analysis
           </p>
@@ -2476,7 +2477,7 @@ function RocModal({ data: initialData, onClose }: { data: RocResponse; onClose: 
           </div>
 
           {/* Zone legend */}
-          <div className="flex-shrink-0 mt-3 flex gap-3 flex-wrap">
+          <div className="flex-shrink-0 mt-2 flex gap-1.5 sm:gap-3 flex-wrap">
             {[
               { label: "< -25%", sub: "Extreme Bear", color: "#10b981" },
               { label: "-25–0%", sub: "Weak / Neg", color: "#f59e0b" },
@@ -2495,7 +2496,7 @@ function RocModal({ data: initialData, onClose }: { data: RocResponse; onClose: 
         </div>
 
         {/* Right panel */}
-        <div className="w-72 flex-shrink-0 border-l border-slate-100 bg-slate-50/40 flex flex-col overflow-y-auto">
+        <div className="w-full md:w-72 flex-shrink-0 border-t md:border-t-0 md:border-l border-slate-100 bg-slate-50/40 flex flex-col overflow-y-auto">
 
           {/* ROC gauge */}
           <div className="p-4 border-b border-slate-100">
@@ -2921,12 +2922,12 @@ function BbModal({ data: initialData, onClose }: { data: BbResponse; onClose: ()
       transition={{ duration: 0.15 }}>
 
       {/* ── Header ── */}
-      <div className="flex-shrink-0 px-6 py-3 flex items-center gap-5 border-b border-slate-100"
+      <div className="flex-shrink-0 px-3 sm:px-6 py-3 flex items-center gap-3 sm:gap-5 border-b border-slate-100 flex-wrap"
         style={{ background: isTouching ? "#f0fdf4" : isNearLower ? "#fffbeb" : "#f8fafc" }}>
 
         {/* Thesis badge */}
         <div className="flex-shrink-0">
-          <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center shadow-sm bg-white"
+          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex flex-col items-center justify-center shadow-sm bg-white"
             style={{ border: `2px solid ${pbColor}45` }}>
             {isLoading ? (
               <div className="w-5 h-5 rounded-full border-2 border-slate-200 border-t-slate-500 animate-spin" />
@@ -2941,12 +2942,12 @@ function BbModal({ data: initialData, onClose }: { data: BbResponse; onClose: ()
           </div>
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           {/* Index selector */}
-          <div className="flex items-center gap-1.5 mb-1.5">
+          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
             {BB_INDICES.map((idx) => (
               <button key={idx.key} onClick={() => setSelectedIndex(idx.key)}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-black transition-all"
+                className="px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-black transition-all"
                 style={selectedIndex === idx.key
                   ? { background: pbColor, color: "#fff" }
                   : { background: "#f1f5f9", color: "#64748b" }}>
@@ -2954,22 +2955,22 @@ function BbModal({ data: initialData, onClose }: { data: BbResponse; onClose: ()
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-lg font-black text-slate-900">Lower BB Thesis</span>
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+            <span className="text-base sm:text-lg font-black text-slate-900">Lower BB Thesis</span>
             <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full"
               style={{ background: pbColor, color: "#fff" }}>{pbLabel}</span>
           </div>
-          <p className="text-xs text-slate-500">
+          <p className="hidden sm:block text-xs text-slate-500">
             Every lower Bollinger Band touch on monthly TF → {indexLabel} higher 18M+ later.
             {lastTouchDate && ` Last touch: ${lastTouchDate.slice(0, 7)}.`}
           </p>
         </div>
 
         {/* Thesis headline */}
-        <div className="flex-shrink-0 text-center px-4 py-2 rounded-xl"
+        <div className="flex-shrink-0 text-center px-3 sm:px-4 py-2 rounded-xl"
           style={{ background: "#10b98115", border: "1px solid #10b98130" }}>
-          <p className="text-[8px] font-black tracking-widest uppercase text-slate-400 mb-0.5">18M Win Rate</p>
-          <p className="text-2xl font-black leading-none" style={{ color: "#10b981" }}>{summary.winRate18m}%</p>
+          <p className="text-[8px] font-black tracking-widest uppercase text-slate-400 mb-0.5">18M Win</p>
+          <p className="text-xl sm:text-2xl font-black leading-none" style={{ color: "#10b981" }}>{summary.winRate18m}%</p>
           <p className="text-[9px] text-slate-400 mt-0.5">{summary.totalEvents} events</p>
         </div>
 
@@ -2980,10 +2981,10 @@ function BbModal({ data: initialData, onClose }: { data: BbResponse; onClose: ()
       </div>
 
       {/* ── Body ── */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
+      <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden min-h-0">
 
         {/* Chart */}
-        <div className="flex-1 flex flex-col px-5 pt-4 pb-3 min-w-0">
+        <div className="h-[45vh] md:h-auto md:flex-1 flex-shrink-0 md:flex-shrink flex flex-col px-3 sm:px-5 pt-4 pb-3 min-w-0">
           <p className="text-[10px] font-black tracking-widest uppercase text-slate-400 mb-3 flex-shrink-0">
             {indexLabel} · Monthly · Bollinger Bands (20, 2) · Lower BB Touch Analysis
           </p>
@@ -3008,7 +3009,7 @@ function BbModal({ data: initialData, onClose }: { data: BbResponse; onClose: ()
           </div>
 
           {/* Band legend */}
-          <div className="flex-shrink-0 mt-3 flex items-center gap-4 flex-wrap">
+          <div className="flex-shrink-0 mt-2 flex items-center gap-2 sm:gap-4 flex-wrap">
             <div className="flex items-center gap-1.5">
               <div className="w-5 h-0.5" style={{ background: "#f59e0b" }} />
               <span className="text-[9px] text-slate-500 font-bold">Upper BB</span>
@@ -3029,7 +3030,7 @@ function BbModal({ data: initialData, onClose }: { data: BbResponse; onClose: ()
         </div>
 
         {/* ── Right panel ── */}
-        <div className="w-72 flex-shrink-0 border-l border-slate-100 bg-slate-50/40 flex flex-col overflow-y-auto">
+        <div className="w-full md:w-72 flex-shrink-0 border-t md:border-t-0 md:border-l border-slate-100 bg-slate-50/40 flex flex-col overflow-y-auto">
 
           {/* Thesis scorecard */}
           <div className="p-4 border-b border-slate-100">
@@ -3229,10 +3230,10 @@ function ClassView({ cls, onSelect }: { cls: AssetClassData; onSelect: (a: Asset
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-2xl border border-slate-100 px-6 py-5 shadow-sm">
-        <div className="flex items-center gap-4 flex-wrap">
+      <div className="bg-white rounded-2xl border border-slate-100 px-4 sm:px-6 py-4 sm:py-5 shadow-sm">
+        <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
           <span className="text-2xl">{cls.icon}</span>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <h2 className="text-base font-black text-slate-900">{cls.name}</h2>
             <p className="text-xs text-slate-400 mt-0.5">
               {cls.assets?.filter((a) => a.hasData).length ?? 0} assets with live data
@@ -3320,7 +3321,7 @@ function RefreshDrawer({ logs, status, onClose }: { logs: string[]; status: Refr
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-      className="fixed bottom-6 right-6 z-50 w-96 bg-slate-950 rounded-2xl shadow-2xl border border-slate-800 overflow-hidden"
+      className="fixed bottom-4 right-4 left-4 sm:left-auto sm:bottom-6 sm:right-6 z-50 sm:w-96 bg-slate-950 rounded-2xl shadow-2xl border border-slate-800 overflow-hidden"
     >
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
         <div className="flex items-center gap-2">
@@ -3373,8 +3374,8 @@ export default function SignalsPage() {
       </AnimatePresence>
 
       {/* Sticky header */}
-      <div className="bg-white/90 backdrop-blur-sm border-b border-slate-200/70 px-6 py-4 sticky top-0 z-20">
-        <div className="flex items-center justify-between gap-4">
+      <div className="bg-white/90 backdrop-blur-sm border-b border-slate-200/70 px-3 sm:px-6 py-3 sm:py-4 sticky top-0 z-20">
+        <div className="flex items-center justify-between gap-2 sm:gap-4">
 
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 min-w-0">
@@ -3440,7 +3441,7 @@ export default function SignalsPage() {
       </div>
 
       {/* Content */}
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
 
         {error && (
           <div className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 mb-5 font-medium">

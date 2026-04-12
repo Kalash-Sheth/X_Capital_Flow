@@ -141,7 +141,7 @@ export function Header() {
   const regime = REGIME_CONFIG[currentRegime] ?? REGIME_CONFIG.UNKNOWN
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-[#DDD9D0] bg-[#F7F6F2]/90 px-6 backdrop-blur-md">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 sm:gap-4 border-b border-[#DDD9D0] bg-[#F7F6F2]/90 px-3 sm:px-6 backdrop-blur-md">
       {/* ── Breadcrumb / title ─────────────────────────────────────────── */}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {/* Breadcrumb */}
@@ -190,10 +190,10 @@ export function Header() {
       </div>
 
       {/* ── Right-side controls ────────────────────────────────────────── */}
-      <div className="flex shrink-0 items-center gap-3">
-        {/* Market Regime badge */}
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        {/* Market Regime badge — hidden on mobile */}
         <AnimatePresence mode="wait">
-          <motion.div
+          <motion.div className="hidden sm:block"
             key={currentRegime}
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -238,11 +238,11 @@ export function Header() {
           </motion.div>
         </AnimatePresence>
 
-        {/* Separator */}
-        <div className="h-5 w-px bg-[#DDD9D0]" />
+        {/* Separator — hidden on mobile */}
+        <div className="hidden sm:block h-5 w-px bg-[#DDD9D0]" />
 
-        {/* Last updated timestamp */}
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        {/* Last updated timestamp — hidden on mobile */}
+        <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
           <Clock size={12} className="shrink-0" />
           <AnimatePresence mode="wait">
             <motion.span

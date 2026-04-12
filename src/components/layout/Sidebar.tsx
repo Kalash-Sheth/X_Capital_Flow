@@ -72,8 +72,10 @@ export function Sidebar() {
   const pathname = usePathname()
 
   return (
+    <>
+    {/* Desktop sidebar — hidden on mobile */}
     <aside
-      className="fixed inset-y-0 left-0 z-40 flex w-[240px] flex-col"
+      className="hidden md:flex fixed inset-y-0 left-0 z-40 w-[240px] flex-col"
       style={{
         background: "linear-gradient(180deg, #1B3A5C 0%, #162E4A 100%)",
         borderRight: "1px solid rgba(255,255,255,0.06)",
@@ -185,6 +187,44 @@ export function Sidebar() {
         </p>
       </div>
     </aside>
+
+    {/* Mobile bottom nav — visible only on mobile */}
+    <MobileBottomNav pathname={pathname} />
+    </>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mobile bottom navigation
+// ─────────────────────────────────────────────────────────────────────────────
+
+function MobileBottomNav({ pathname }: { pathname: string }) {
+  return (
+    <nav
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around h-14 border-t border-white/[0.07]"
+      style={{ background: "linear-gradient(180deg, #1B3A5C 0%, #162E4A 100%)" }}
+    >
+      {NAV_ITEMS.map((item) => {
+        const isActive =
+          (item.href as string) === "/"
+            ? pathname === "/"
+            : pathname === item.href || pathname.startsWith(item.href + "/")
+        return (
+          <Link key={item.href} href={item.href}
+            className={cn(
+              "flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors",
+              isActive ? "text-white" : "text-white/40"
+            )}
+          >
+            <item.icon size={18} strokeWidth={isActive ? 2 : 1.75}
+              className={isActive ? "text-[#C8DCF0]" : "text-white/40"} />
+            <span className={cn("text-[10px] leading-none", isActive ? "font-semibold" : "font-medium")}>
+              {item.label}
+            </span>
+          </Link>
+        )
+      })}
+    </nav>
   )
 }
 
