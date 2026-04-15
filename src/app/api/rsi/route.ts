@@ -1,9 +1,10 @@
 // GET /api/rsi
 // Nifty RSI Extremes Intelligence Engine
-// Monthly RSI(14) · Extreme event detection · Forward return analysis
+// Monthly RSI(14) · Multi-index · Multi-threshold · Forward return analysis
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getDhanToken } from "@/lib/dhan-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -23,24 +24,36 @@ export interface RsiBar {
 }
 
 export interface RsiExtremeEvent {
-  startDate:    string;   // first month RSI crossed above 80
-  endDate:      string;   // last month RSI was above 80
+  startDate:    string;
+  endDate:      string;
   peakRsi:      number;
   peakDate:     string;
-  duration:     number;   // months above 80
-  kind:         "sustained" | "brief";   // sustained = 2+ months, brief = 1 month
-  niftyAtStart: number;
-  ret1m:        number | null;
+  duration:     number;   // months in zone
+  kind:         "sustained" | "brief";
+  type:         "overbought" | "oversold";
+  niftyAtStart: number;   // price when zone entered (display)
+  niftyAtExit:  number;   // price when zone exited (return baseline)
   ret3m:        number | null;
   ret6m:        number | null;
-  maxDrawdown:  number | null;  // worst close in next 6 months vs entry
+  ret12m:       number | null;
+  ret18m:       number | null;
+  maxDrawdown:  number | null;
+}
+
+export interface RsiThresholdStats {
+  totalEvents:    number;
+  avgRet3m:       number;  avgRet6m:       number;
+  avgRet12m:      number;  avgRet18m:      number;
+  winRate3m:      number;  winRate6m:      number;
+  winRate12m:     number;  winRate18m:     number;
+  avgMaxDrawdown: number;
 }
 
 export interface RsiOutcomeSummary {
-  totalEvents:   number;
-  avgRet1m:      number;  avgRet3m:      number;  avgRet6m:      number;
-  winRate1m:     number;  winRate3m:     number;  winRate6m:     number;
-  avgMaxDrawdown: number;
+  ob80: RsiThresholdStats | null;  // RSI > 80
+  ob70: RsiThresholdStats | null;  // RSI > 70
+  os35: RsiThresholdStats | null;  // RSI < 35
+  os50: RsiThresholdStats | null;  // RSI < 50
 }
 
 export interface RsiZone {
@@ -59,16 +72,195 @@ export interface RsiSignal {
 }
 
 export interface RsiResponse {
-  niftyBars:     RsiMonthlyBar[];
-  rsiBars:       RsiBar[];
-  extremeEvents: RsiExtremeEvent[];
-  summary:       RsiOutcomeSummary | null;
-  zone:          RsiZone;
-  signal:        RsiSignal;
-  currentRsi:    number;
-  prevRsi:       number;
-  change:        number;
-  hasData:       boolean;
+  niftyBars:      RsiMonthlyBar[];
+  rsiBars:        RsiBar[];
+  extremeEvents:  RsiExtremeEvent[];   // primary: >80 and <30 for chart markers
+  summary:        RsiOutcomeSummary;
+  zone:           RsiZone;
+  signal:         RsiSignal;
+  currentRsi:     number;
+  prevRsi:        number;
+  change:         number;
+  indexLabel:     string;
+  hasData:        boolean;
+}
+
+// ─── Index config ─────────────────────────────────────────────────────────────
+
+export type RsiIndex = "nifty50" | "nifty500" | "smallcap100";
+
+interface IndexConfig {
+  ticker:       string;
+  label:        string;
+  yf:           string | null;
+  dhan:         { securityId: string; exchangeSegment: string } | null;
+  allTimeStart: Date;
+  minRows:      number;
+}
+
+const INDEX_CONFIG: Record<RsiIndex, IndexConfig> = {
+  nifty50: {
+    ticker: "NIFTY50", label: "Nifty 50",
+    yf: "%5ENSEI", dhan: null,
+    allTimeStart: new Date("2000-01-01"), minRows: 5000,
+  },
+  nifty500: {
+    ticker: "NIFTY500", label: "Nifty 500",
+    yf: "%5ECRSLDX", dhan: null,
+    allTimeStart: new Date("2005-09-01"), minRows: 3000,
+  },
+  smallcap100: {
+    ticker: "NIFTY_SMALLCAP", label: "Nifty SmallCap 100",
+    yf: null, dhan: { securityId: "3", exchangeSegment: "IDX_I" },
+    // Dhan only has SmallCap data from 2019. Pre-2019 history must come from CSV import.
+    allTimeStart: new Date("2019-01-13"), minRows: 1500,
+  },
+};
+
+// ─── Gap-fill helpers ─────────────────────────────────────────────────────────
+
+const gapFillCooldown = new Map<string, number>();
+const gapFillPromises = new Map<string, Promise<void>>();
+
+async function gapFillViaYahoo(cfg: IndexConfig, assetId: string, fromDate: Date): Promise<number> {
+  const todayUtc = new Date(); todayUtc.setUTCHours(0, 0, 0, 0);
+  const period1  = Math.floor(fromDate.getTime() / 1000);
+  const period2  = Math.floor(todayUtc.getTime() / 1000) + 86400;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${cfg.yf}?interval=1d&period1=${period1}&period2=${period2}`;
+
+  const resp = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(15_000) });
+  if (!resp.ok) return 0;
+
+  const json = await resp.json() as {
+    chart: { result: Array<{
+      timestamp: number[];
+      indicators: { quote: Array<{ open: number[]; high: number[]; low: number[]; close: number[]; volume: number[] }> };
+    }> | null };
+  };
+  const result = json?.chart?.result?.[0];
+  if (!result) return 0;
+
+  const { timestamp, indicators } = result;
+  const q         = indicators.quote[0];
+  const lastKnown = fromDate.toISOString().slice(0, 10);
+  const rows: { assetId: string; timestamp: Date; open: number; high: number; low: number; close: number; volume: number; source: string }[] = [];
+
+  for (let i = 0; i < timestamp.length; i++) {
+    if (q.close[i] == null) continue;
+    const barDate = new Date(timestamp[i] * 1000);
+    barDate.setUTCHours(0, 0, 0, 0);
+    if (barDate.toISOString().slice(0, 10) <= lastKnown) continue;
+    rows.push({
+      assetId, timestamp: barDate,
+      open: q.open[i] ?? q.close[i], high: q.high[i] ?? q.close[i],
+      low:  q.low[i]  ?? q.close[i], close: q.close[i],
+      volume: q.volume[i] ?? 0, source: "yfinance_gapfill",
+    });
+  }
+  if (rows.length > 0) await prisma.priceData.createMany({ data: rows, skipDuplicates: true });
+  return rows.length;
+}
+
+async function gapFillViaDhan(cfg: IndexConfig, assetId: string, fromDate: Date): Promise<number> {
+  const dhanToken = await getDhanToken();
+  if (!dhanToken || !cfg.dhan) return 0;
+
+  const todayUtc   = new Date(); todayUtc.setUTCHours(0, 0, 0, 0);
+  const CHUNK_MS   = 365 * 86_400_000;
+  let   chunkEnd   = new Date(todayUtc);
+  let   chunkStart = new Date(Math.max(fromDate.getTime(), chunkEnd.getTime() - CHUNK_MS));
+  let   total      = 0;
+
+  while (chunkStart >= fromDate) {
+    const body = {
+      securityId:      cfg.dhan.securityId,
+      exchangeSegment: cfg.dhan.exchangeSegment,
+      instrument:      "INDEX",
+      expiryCode:      0,
+      fromDate:        chunkStart.toISOString().slice(0, 10),
+      toDate:          chunkEnd.toISOString().slice(0, 10),
+    };
+    const resp = await fetch("https://api.dhan.co/v2/charts/historical", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", "access-token": dhanToken },
+      body:    JSON.stringify(body),
+      signal:  AbortSignal.timeout(10_000),
+    });
+    if (!resp.ok) break;
+
+    const json = await resp.json() as {
+      open?: number[]; high?: number[]; low?: number[]; close?: number[];
+      volume?: number[]; timestamp?: number[];
+    };
+    if (!json.close?.length || !json.timestamp?.length) break;
+
+    const lastKnown = fromDate.toISOString().slice(0, 10);
+    const rows: { assetId: string; timestamp: Date; open: number; high: number; low: number; close: number; volume: number; source: string }[] = [];
+    for (let i = 0; i < json.timestamp.length; i++) {
+      if (json.close[i] == null) continue;
+      const barDate = new Date(json.timestamp[i] * 1000);
+      barDate.setUTCHours(0, 0, 0, 0);
+      if (barDate.toISOString().slice(0, 10) <= lastKnown) continue;
+      rows.push({
+        assetId, timestamp: barDate,
+        open:   json.open?.[i]   ?? json.close[i],
+        high:   json.high?.[i]   ?? json.close[i],
+        low:    json.low?.[i]    ?? json.close[i],
+        close:  json.close[i],
+        volume: json.volume?.[i] ?? 0,
+        source: "dhan_gapfill",
+      });
+    }
+    if (rows.length > 0) { await prisma.priceData.createMany({ data: rows, skipDuplicates: true }); total += rows.length; }
+
+    chunkEnd   = new Date(chunkStart.getTime() - 86_400_000);
+    chunkStart = new Date(Math.max(fromDate.getTime(), chunkEnd.getTime() - CHUNK_MS));
+    if (chunkEnd < fromDate) break;
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  return total;
+}
+
+async function gapFillIndex(cfg: IndexConfig): Promise<void> {
+  const now = Date.now();
+  if ((now - (gapFillCooldown.get(cfg.ticker) ?? 0)) < 60 * 60 * 1000) return;
+
+  try {
+    const [rowCount, latest] = await Promise.all([
+      prisma.priceData.count({ where: { asset: { ticker: cfg.ticker } } }),
+      prisma.priceData.findFirst({
+        where: { asset: { ticker: cfg.ticker } },
+        orderBy: { timestamp: "desc" },
+        select: { timestamp: true },
+      }),
+    ]);
+
+    const todayUtc = new Date(); todayUtc.setUTCHours(0, 0, 0, 0);
+    let fromDate: Date | null = null;
+    if (rowCount < cfg.minRows) {
+      fromDate = cfg.allTimeStart;
+    } else if (latest) {
+      const diffDays = (todayUtc.getTime() - latest.timestamp.getTime()) / 86_400_000;
+      if (diffDays >= 1) fromDate = latest.timestamp;
+    }
+    if (!fromDate) { gapFillCooldown.set(cfg.ticker, now); return; }
+
+    const asset = await prisma.asset.upsert({
+      where:  { ticker: cfg.ticker },
+      update: {},
+      create: { ticker: cfg.ticker, name: cfg.label, assetClass: "EQUITY", currency: "INR" },
+      select: { id: true },
+    });
+
+    let added = 0;
+    if (cfg.yf)   added = await gapFillViaYahoo(cfg, asset.id, fromDate);
+    else if (cfg.dhan) added = await gapFillViaDhan(cfg, asset.id, fromDate);
+
+    if (added > 0) console.log(`[rsi/gap-fill] ${cfg.ticker}: +${added} bars`);
+    gapFillCooldown.set(cfg.ticker, now);
+  } catch (err) {
+    console.warn(`[rsi/gap-fill] ${cfg.ticker} failed:`, err);
+  }
 }
 
 // ─── Monthly aggregation ──────────────────────────────────────────────────────
@@ -134,15 +326,17 @@ function getZone(rsi: number): RsiZone {
 
 // ─── Signal engine ────────────────────────────────────────────────────────────
 
-function getSignal(rsi: number, prev: number, summary: RsiOutcomeSummary | null): RsiSignal {
+function getSignal(rsi: number, prev: number, summary: RsiOutcomeSummary): RsiSignal {
   const trend = rsi > prev ? "rising" : rsi < prev ? "falling" : "flat";
+  const ob = summary.ob80;
+  const os = summary.os35;
 
   if (rsi >= 85) return {
     label: "Extreme Overbought",
     bias: "Strong Bearish", confidence: 82,
     signal: "Avoid fresh buying · Consider partial profit booking",
     rationale: `RSI at ${rsi.toFixed(1)} — deep in extreme territory. ${
-      summary ? `Historically, 6M avg return after such events is ${summary.avgRet6m > 0 ? "+" : ""}${summary.avgRet6m}% with ${summary.avgMaxDrawdown.toFixed(1)}% avg max drawdown.` : "Market severely overbought."
+      ob ? `Historically, 6M avg return after such events is ${ob.avgRet6m > 0 ? "+" : ""}${ob.avgRet6m}% with ${ob.avgMaxDrawdown.toFixed(1)}% avg max drawdown.` : "Market severely overbought."
     }`,
   };
 
@@ -151,7 +345,7 @@ function getSignal(rsi: number, prev: number, summary: RsiOutcomeSummary | null)
     bias: "Bearish", confidence: 72,
     signal: "Reduce aggression · Tighten stop-losses",
     rationale: `RSI crossed 80 threshold${trend === "rising" ? " and still rising" : trend === "falling" ? " and now pulling back" : ""}. ${
-      summary ? `Past ${summary.totalEvents} events averaged ${summary.avgRet3m > 0 ? "+" : ""}${summary.avgRet3m}% over 3 months.` : "Elevated correction risk."
+      ob ? `Past ${ob.totalEvents} events averaged ${ob.avgRet3m > 0 ? "+" : ""}${ob.avgRet3m}% over 3M.` : "Elevated correction risk."
     }`,
   };
 
@@ -159,102 +353,67 @@ function getSignal(rsi: number, prev: number, summary: RsiOutcomeSummary | null)
     label: "Near Extreme — Watch",
     bias: "Caution", confidence: 60,
     signal: "Monitor closely · Avoid chasing momentum",
-    rationale: "RSI approaching 80 extreme zone. Momentum strong but historically corrections begin here. Wait for RSI to cross 80 or pull back below 70 before taking fresh positions.",
+    rationale: "RSI approaching 80 extreme zone. Momentum strong but historically corrections begin here.",
   };
 
   if (rsi >= 60) return {
     label: "Bullish Momentum",
     bias: "Neutral", confidence: 50,
     signal: "Trend intact · Hold existing positions",
-    rationale: "RSI in upper-normal range. Healthy trend — not overextended yet. Follow the momentum with defined stop-losses.",
+    rationale: "RSI in upper-normal range. Healthy trend — not overextended yet.",
   };
 
   if (rsi <= 30) return {
     label: "Oversold — Opportunity",
     bias: "Bullish", confidence: 68,
     signal: "Watch for reversal · Accumulate on strength",
-    rationale: "RSI in oversold territory. Historically, deep RSI readings below 30 on monthly chart mark generational buying opportunities in Nifty.",
+    rationale: `RSI in oversold territory. ${
+      os ? `Past ${os.totalEvents} oversold events averaged ${os.avgRet12m > 0 ? "+" : ""}${os.avgRet12m}% over 12M.` : "Historically marks generational buying zones."
+    }`,
   };
 
   return {
     label: "Neutral Range",
     bias: "Neutral", confidence: 45,
     signal: "No extreme signal · Wait for clear setup",
-    rationale: "RSI in normal range. No extreme overbought or oversold conditions. Watch for trend confirmation before positioning.",
+    rationale: "RSI in normal range. No extreme conditions present.",
   };
 }
 
-// ─── Extreme event detection + outcome measurement ────────────────────────────
-
-function detectExtremeEvents(
-  monthlyBars: RsiMonthlyBar[],
-  rsiValues: (number | null)[],
-  threshold = 80,
-  minDuration = 1,   // 1 = capture all touches; kind="brief"|"sustained" differentiates
-): RsiExtremeEvent[] {
-  const events: RsiExtremeEvent[] = [];
-  let inEvent = false;
-  let eventStart = -1;
-
-  for (let i = 0; i < monthlyBars.length; i++) {
-    const rsi = rsiValues[i];
-    if (rsi === null) continue;
-
-    if (!inEvent && rsi >= threshold) {
-      inEvent = true;
-      eventStart = i;
-    } else if (inEvent && rsi < threshold) {
-      // Event ended
-      const duration = i - eventStart;
-      if (duration >= minDuration) {
-        events.push(buildEvent(monthlyBars, rsiValues, eventStart, i - 1));
-      }
-      inEvent = false;
-    }
-  }
-  // Handle open event at end of data
-  if (inEvent) {
-    const duration = monthlyBars.length - eventStart;
-    if (duration >= minDuration) {
-      events.push(buildEvent(monthlyBars, rsiValues, eventStart, monthlyBars.length - 1));
-    }
-  }
-
-  return events;
-}
+// ─── Event building (anchor fix: returns from exit price) ─────────────────────
 
 function buildEvent(
-  bars: RsiMonthlyBar[],
+  bars:      RsiMonthlyBar[],
   rsiValues: (number | null)[],
-  startIdx: number,
-  endIdx: number,
+  startIdx:  number,
+  endIdx:    number,
+  type:      "overbought" | "oversold",
 ): RsiExtremeEvent {
-  // Find peak RSI within event
-  let peakRsi = 0, peakIdx = startIdx;
+  let peakRsi = type === "overbought" ? -Infinity : Infinity;
+  let peakIdx = startIdx;
   for (let i = startIdx; i <= endIdx; i++) {
     const r = rsiValues[i];
-    if (r !== null && r > peakRsi) { peakRsi = r; peakIdx = i; }
+    if (r === null) continue;
+    if (type === "overbought" ? r > peakRsi : r < peakRsi) { peakRsi = r; peakIdx = i; }
   }
 
-  const entryClose = bars[startIdx].close;
-  const duration   = endIdx - startIdx + 1;
+  const niftyAtStart = bars[startIdx].close;   // entry price — display only
+  const exitClose    = bars[endIdx].close;       // exit price — return baseline
+  const duration     = endIdx - startIdx + 1;
 
-  // Forward returns: 1M = endIdx+1, 3M = endIdx+3, 6M = endIdx+6
   const fwdClose = (offset: number): number | null => {
     const idx = endIdx + offset;
     return idx < bars.length ? bars[idx].close : null;
   };
+  // Anchor: after the zone was exited, what happened over 3/6/12/18 months?
   const ret = (c: number | null) =>
-    c !== null ? parseFloat(((c - entryClose) / entryClose * 100).toFixed(2)) : null;
+    c !== null ? parseFloat(((c - exitClose) / exitClose * 100).toFixed(2)) : null;
 
-  const c1 = fwdClose(1); const c3 = fwdClose(3); const c6 = fwdClose(6);
-
-  // Max drawdown in 6 months after event end
   let maxDrawdown: number | null = null;
-  for (let d = 1; d <= 6; d++) {
+  for (let d = 1; d <= 18; d++) {
     const c = fwdClose(d);
     if (c === null) break;
-    const dd = (c - entryClose) / entryClose * 100;
+    const dd = (c - exitClose) / exitClose * 100;
     if (maxDrawdown === null || dd < maxDrawdown) maxDrawdown = dd;
   }
 
@@ -265,51 +424,123 @@ function buildEvent(
     peakDate:     bars[peakIdx].date,
     duration,
     kind:         duration >= 2 ? "sustained" : "brief",
-    niftyAtStart: parseFloat(entryClose.toFixed(2)),
-    ret1m: ret(c1), ret3m: ret(c3), ret6m: ret(c6),
+    type,
+    niftyAtStart: parseFloat(niftyAtStart.toFixed(2)),
+    niftyAtExit:  parseFloat(exitClose.toFixed(2)),
+    ret3m:        ret(fwdClose(3)),
+    ret6m:        ret(fwdClose(6)),
+    ret12m:       ret(fwdClose(12)),
+    ret18m:       ret(fwdClose(18)),
     maxDrawdown:  maxDrawdown !== null ? parseFloat(maxDrawdown.toFixed(2)) : null,
   };
 }
 
-function computeSummary(events: RsiExtremeEvent[]): RsiOutcomeSummary | null {
-  if (events.length < 2) return null;
+// ─── Per-threshold stats builder ─────────────────────────────────────────────
 
-  const avg = (arr: (number | null)[]): number => {
-    const valid = arr.filter((v): v is number => v !== null);
-    return valid.length ? parseFloat((valid.reduce((a, b) => a + b, 0) / valid.length).toFixed(2)) : 0;
+function buildThresholdStats(
+  monthlyBars: RsiMonthlyBar[],
+  rsiValues:   (number | null)[],
+  threshold:   number,
+  type:        "overbought" | "oversold",
+): RsiThresholdStats | null {
+  const evts: RsiExtremeEvent[] = [];
+  const inZone = (rsi: number) => type === "overbought" ? rsi >= threshold : rsi <= threshold;
+  let inEvent = false, eventStart = -1;
+
+  for (let i = 0; i < monthlyBars.length; i++) {
+    const rsi = rsiValues[i];
+    if (rsi === null) continue;
+    if (!inEvent && inZone(rsi))       { inEvent = true; eventStart = i; }
+    else if (inEvent && !inZone(rsi))  { evts.push(buildEvent(monthlyBars, rsiValues, eventStart, i - 1, type)); inEvent = false; }
+  }
+  if (inEvent) evts.push(buildEvent(monthlyBars, rsiValues, eventStart, monthlyBars.length - 1, type));
+
+  if (evts.length < 1) return null;
+
+  const avg = (arr: (number | null)[]) => {
+    const v = arr.filter((x): x is number => x !== null);
+    return v.length ? parseFloat((v.reduce((a, b) => a + b, 0) / v.length).toFixed(2)) : 0;
   };
-  const winRate = (arr: (number | null)[]): number => {
-    const valid = arr.filter((v): v is number => v !== null);
-    return valid.length ? Math.round(valid.filter((v) => v > 0).length / valid.length * 100) : 0;
+  const wr = (arr: (number | null)[]) => {
+    const v = arr.filter((x): x is number => x !== null);
+    return v.length ? Math.round(v.filter((x) => x > 0).length / v.length * 100) : 0;
   };
 
   return {
-    totalEvents:    events.length,
-    avgRet1m:       avg(events.map((e) => e.ret1m)),
-    avgRet3m:       avg(events.map((e) => e.ret3m)),
-    avgRet6m:       avg(events.map((e) => e.ret6m)),
-    winRate1m:      winRate(events.map((e) => e.ret1m)),
-    winRate3m:      winRate(events.map((e) => e.ret3m)),
-    winRate6m:      winRate(events.map((e) => e.ret6m)),
-    avgMaxDrawdown: avg(events.map((e) => e.maxDrawdown)),
+    totalEvents:    evts.length,
+    avgRet3m:       avg(evts.map((e) => e.ret3m)),
+    avgRet6m:       avg(evts.map((e) => e.ret6m)),
+    avgRet12m:      avg(evts.map((e) => e.ret12m)),
+    avgRet18m:      avg(evts.map((e) => e.ret18m)),
+    winRate3m:      wr(evts.map((e) => e.ret3m)),
+    winRate6m:      wr(evts.map((e) => e.ret6m)),
+    winRate12m:     wr(evts.map((e) => e.ret12m)),
+    winRate18m:     wr(evts.map((e) => e.ret18m)),
+    avgMaxDrawdown: avg(evts.map((e) => e.maxDrawdown)),
   };
+}
+
+function computeSummary(monthlyBars: RsiMonthlyBar[], rsiValues: (number | null)[]): RsiOutcomeSummary {
+  return {
+    ob80: buildThresholdStats(monthlyBars, rsiValues, 80, "overbought"),
+    ob70: buildThresholdStats(monthlyBars, rsiValues, 70, "overbought"),
+    os35: buildThresholdStats(monthlyBars, rsiValues, 35, "oversold"),
+    os50: buildThresholdStats(monthlyBars, rsiValues, 50, "oversold"),
+  };
+}
+
+// ─── Primary extreme events for chart markers (>80 overbought, <30 oversold) ──
+
+function detectPrimaryEvents(
+  monthlyBars: RsiMonthlyBar[],
+  rsiValues:   (number | null)[],
+): RsiExtremeEvent[] {
+  const events: RsiExtremeEvent[] = [];
+
+  const detect = (threshold: number, type: "overbought" | "oversold") => {
+    const inZone = (rsi: number) => type === "overbought" ? rsi >= threshold : rsi <= threshold;
+    let inEvent = false, eventStart = -1;
+    for (let i = 0; i < monthlyBars.length; i++) {
+      const rsi = rsiValues[i];
+      if (rsi === null) continue;
+      if (!inEvent && inZone(rsi))      { inEvent = true; eventStart = i; }
+      else if (inEvent && !inZone(rsi)) { events.push(buildEvent(monthlyBars, rsiValues, eventStart, i - 1, type)); inEvent = false; }
+    }
+    if (inEvent) events.push(buildEvent(monthlyBars, rsiValues, eventStart, monthlyBars.length - 1, type));
+  };
+
+  detect(80, "overbought");
+  detect(30, "oversold");
+
+  return events.sort((a, b) => a.startDate.localeCompare(b.startDate));
 }
 
 // ─── GET handler ──────────────────────────────────────────────────────────────
 
-export async function GET() {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const indexKey = (searchParams.get("index") ?? "nifty50") as RsiIndex;
+  const cfg = INDEX_CONFIG[indexKey] ?? INDEX_CONFIG.nifty50;
+
+  // Gap-fill in background (deduplicated, 1h cooldown)
+  if (!gapFillPromises.has(cfg.ticker)) {
+    const p = gapFillIndex(cfg).finally(() => gapFillPromises.delete(cfg.ticker));
+    gapFillPromises.set(cfg.ticker, p);
+  }
+  try { await Promise.race([gapFillPromises.get(cfg.ticker)!, new Promise<void>((r) => setTimeout(r, 5000))]); }
+  catch { /* non-fatal */ }
+
   try {
-    const niftyAsset = await prisma.asset.findUnique({
-      where:   { ticker: "NIFTY50" },
+    const asset = await prisma.asset.findUnique({
+      where:   { ticker: cfg.ticker },
       include: { priceData: { orderBy: { timestamp: "desc" }, take: 6000 } },
     });
 
-    if (!niftyAsset || niftyAsset.priceData.length < 20) {
+    if (!asset || asset.priceData.length < 20) {
       return NextResponse.json({ hasData: false } satisfies Partial<RsiResponse>);
     }
 
-    // Chronological daily bars
-    const dailyBars = niftyAsset.priceData.slice().reverse().map((r) => ({
+    const dailyBars = asset.priceData.slice().reverse().map((r) => ({
       date:  r.timestamp.toISOString().slice(0, 10),
       open:  r.open, high: r.high, low: r.low, close: r.close,
     }));
@@ -320,7 +551,6 @@ export async function GET() {
     const closes    = monthlyBars.map((b) => b.close);
     const rsiValues = computeRSI(closes, 14);
 
-    // Build RsiBar array (skip nulls for chart)
     const rsiBars: RsiBar[] = [];
     for (let i = 0; i < monthlyBars.length; i++) {
       const r = rsiValues[i];
@@ -331,22 +561,23 @@ export async function GET() {
     const prevRsi    = rsiBars.at(-2)?.rsi ?? currentRsi;
     const change     = parseFloat((currentRsi - prevRsi).toFixed(2));
 
-    const extremeEvents = detectExtremeEvents(monthlyBars, rsiValues);
-    const summary       = computeSummary(extremeEvents);
+    const extremeEvents = detectPrimaryEvents(monthlyBars, rsiValues);
+    const summary       = computeSummary(monthlyBars, rsiValues);
     const zone          = getZone(currentRsi);
     const signal        = getSignal(currentRsi, prevRsi, summary);
 
     return NextResponse.json({
       hasData: true,
-      niftyBars:     monthlyBars,
+      niftyBars:  monthlyBars,
       rsiBars,
       extremeEvents,
       summary,
       zone,
       signal,
-      currentRsi:    parseFloat(currentRsi.toFixed(2)),
-      prevRsi:       parseFloat(prevRsi.toFixed(2)),
+      currentRsi:  parseFloat(currentRsi.toFixed(2)),
+      prevRsi:     parseFloat(prevRsi.toFixed(2)),
       change,
+      indexLabel:  cfg.label,
     } satisfies RsiResponse);
 
   } catch (err) {

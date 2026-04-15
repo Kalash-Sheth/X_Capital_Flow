@@ -177,6 +177,39 @@ model SystemConfig {
   updatedAt DateTime @updatedAt
 }
 
+// ─── Nifty 100 Constituent Stocks ─────────────────────────────────────────────
+
+model Nifty100Stock {
+  id        String         @id @default(cuid())
+  symbol    String         @unique   // NSE symbol e.g. RELIANCE
+  ticker    String         @unique   // Yahoo Finance ticker e.g. RELIANCE.NS
+  name      String
+  industry  String?
+  isin      String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  prices    Nifty100Price[]
+
+  @@index([symbol])
+  @@index([industry])
+}
+
+model Nifty100Price {
+  id      String        @id @default(cuid())
+  stockId String
+  date    DateTime      @db.Date
+  open    Float
+  high    Float
+  low     Float
+  close   Float
+  volume  BigInt?
+  stock   Nifty100Stock @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  @@unique([stockId, date])
+  @@index([stockId, date])
+  @@index([date])
+}
+
 enum InsightType {
   MARKET_OVERVIEW
   ROTATION_SIGNAL
@@ -184,4 +217,21 @@ enum InsightType {
   OPPORTUNITY
   MACRO_ANALYSIS
   SECTOR_ANALYSIS
+}
+
+// ─── FII / DII Daily Flow ─────────────────────────────────────────────────────
+
+model FiiDiiFlow {
+  id        String   @id @default(cuid())
+  date      DateTime @unique @db.Date
+  fiiBuy    Float    // ₹ Crores
+  fiiSell   Float
+  fiiNet    Float    // fiiBuy - fiiSell
+  diiBuy    Float
+  diiSell   Float
+  diiNet    Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
 }

@@ -31,31 +31,30 @@ export interface RocExtremeEvent {
   duration:     number;   // months in zone
   kind:         "sustained" | "brief";
   type:         "overbought" | "oversold";
-  niftyAtStart: number;
+  niftyAtStart: number;   // price when zone was entered (display only)
+  niftyAtExit:  number;   // price when zone was exited (return baseline)
   ret3m:        number | null;
   ret6m:        number | null;
   ret12m:       number | null;
   ret18m:       number | null;
-  maxDrawdown:  number | null;  // worst close in next 18 months vs entry
+  maxDrawdown:  number | null;  // worst close in next 18 months vs exit price
+}
+
+export interface RocThresholdStats {
+  totalEvents:    number;
+  avgRet3m:       number;  avgRet6m:       number;
+  avgRet12m:      number;  avgRet18m:      number;
+  winRate3m:      number;  winRate6m:      number;
+  winRate12m:     number;  winRate18m:     number;
+  avgMaxDrawdown: number;
 }
 
 export interface RocOutcomeSummary {
-  overbought: {
-    totalEvents:   number;
-    avgRet3m:      number;  avgRet6m:      number;
-    avgRet12m:     number;  avgRet18m:     number;
-    winRate3m:     number;  winRate6m:     number;
-    winRate12m:    number;  winRate18m:    number;
-    avgMaxDrawdown: number;
-  } | null;
-  oversold: {
-    totalEvents:   number;
-    avgRet3m:      number;  avgRet6m:      number;
-    avgRet12m:     number;  avgRet18m:     number;
-    winRate3m:     number;  winRate6m:     number;
-    winRate12m:    number;  winRate18m:    number;
-    avgMaxDrawdown: number;
-  } | null;
+  ob80:  RocThresholdStats | null;  // ROC > +80%
+  ob30:  RocThresholdStats | null;  // ROC > +30%
+  os_25: RocThresholdStats | null;  // ROC < -25%
+  os_10: RocThresholdStats | null;  // ROC < -10%
+  os0:   RocThresholdStats | null;  // ROC < 0%
 }
 
 export interface RocZone {
@@ -141,8 +140,8 @@ function getZone(roc: number): RocZone {
 
 function getSignal(roc: number, prev: number, pct: number, summary: RocOutcomeSummary): RocSignal {
   const trend = roc > prev ? "rising" : roc < prev ? "falling" : "flat";
-  const ob = summary.overbought;
-  const os = summary.oversold;
+  const ob = summary.ob80;
+  const os = summary.os_25;
 
   if (roc >= 100) return {
     label: "Euphoric Bull — Reversal Risk",
@@ -240,15 +239,17 @@ function buildEvent(
     if (type === "overbought" ? r > peakRoc : r < peakRoc) { peakRoc = r; peakIdx = i; }
   }
 
-  const entryClose = bars[startIdx].close;
-  const duration   = endIdx - startIdx + 1;
+  const niftyAtStart = bars[startIdx].close;   // entry price — display only
+  const exitClose    = bars[endIdx].close;       // exit price — return baseline (fixed anchor)
+  const duration     = endIdx - startIdx + 1;
 
   const fwdClose = (offset: number): number | null => {
     const idx = endIdx + offset;
     return idx < bars.length ? bars[idx].close : null;
   };
+  // Returns measured from exitClose: "after ROC left this zone, what happened?"
   const ret = (c: number | null) =>
-    c !== null ? parseFloat(((c - entryClose) / entryClose * 100).toFixed(2)) : null;
+    c !== null ? parseFloat(((c - exitClose) / exitClose * 100).toFixed(2)) : null;
 
   const c3  = fwdClose(3);
   const c6  = fwdClose(6);
@@ -259,7 +260,7 @@ function buildEvent(
   for (let d = 1; d <= 18; d++) {
     const c = fwdClose(d);
     if (c === null) break;
-    const dd = (c - entryClose) / entryClose * 100;
+    const dd = (c - exitClose) / exitClose * 100;
     if (maxDrawdown === null || dd < maxDrawdown) maxDrawdown = dd;
   }
 
@@ -271,40 +272,69 @@ function buildEvent(
     duration,
     kind:         duration >= 2 ? "sustained" : "brief",
     type,
-    niftyAtStart: parseFloat(entryClose.toFixed(2)),
+    niftyAtStart: parseFloat(niftyAtStart.toFixed(2)),
+    niftyAtExit:  parseFloat(exitClose.toFixed(2)),
     ret3m:  ret(c3),  ret6m:  ret(c6),
     ret12m: ret(c12), ret18m: ret(c18),
     maxDrawdown: maxDrawdown !== null ? parseFloat(maxDrawdown.toFixed(2)) : null,
   };
 }
 
-function computeSummary(events: RocExtremeEvent[]): RocOutcomeSummary {
+// ─── Per-threshold stats builder ─────────────────────────────────────────────
+
+function buildThresholdStats(
+  monthlyBars: RocMonthlyBar[],
+  rocValues:   (number | null)[],
+  threshold:   number,
+  type:        "overbought" | "oversold",
+): RocThresholdStats | null {
+  // Detect events specifically for this threshold
+  const evts: RocExtremeEvent[] = [];
+  const above = (roc: number) => type === "overbought" ? roc >= threshold : roc <= threshold;
+  let inEvent = false, eventStart = -1;
+  for (let i = 0; i < monthlyBars.length; i++) {
+    const roc = rocValues[i];
+    if (roc === null) continue;
+    if (!inEvent && above(roc))       { inEvent = true; eventStart = i; }
+    else if (inEvent && !above(roc))  { evts.push(buildEvent(monthlyBars, rocValues, eventStart, i - 1, type)); inEvent = false; }
+  }
+  if (inEvent) evts.push(buildEvent(monthlyBars, rocValues, eventStart, monthlyBars.length - 1, type));
+
+  if (evts.length < 1) return null;
+
   const avg = (arr: (number | null)[]): number => {
     const valid = arr.filter((v): v is number => v !== null);
     return valid.length ? parseFloat((valid.reduce((a, b) => a + b, 0) / valid.length).toFixed(2)) : 0;
   };
-  const winRate = (arr: (number | null)[]): number => {
+  const wr = (arr: (number | null)[]): number => {
     const valid = arr.filter((v): v is number => v !== null);
     return valid.length ? Math.round(valid.filter((v) => v > 0).length / valid.length * 100) : 0;
   };
-  const build = (evts: RocExtremeEvent[]) => {
-    if (evts.length < 1) return null;
-    return {
-      totalEvents:    evts.length,
-      avgRet3m:       avg(evts.map((e) => e.ret3m)),
-      avgRet6m:       avg(evts.map((e) => e.ret6m)),
-      avgRet12m:      avg(evts.map((e) => e.ret12m)),
-      avgRet18m:      avg(evts.map((e) => e.ret18m)),
-      winRate3m:      winRate(evts.map((e) => e.ret3m)),
-      winRate6m:      winRate(evts.map((e) => e.ret6m)),
-      winRate12m:     winRate(evts.map((e) => e.ret12m)),
-      winRate18m:     winRate(evts.map((e) => e.ret18m)),
-      avgMaxDrawdown: avg(evts.map((e) => e.maxDrawdown)),
-    };
-  };
+
   return {
-    overbought: build(events.filter((e) => e.type === "overbought")),
-    oversold:   build(events.filter((e) => e.type === "oversold")),
+    totalEvents:    evts.length,
+    avgRet3m:       avg(evts.map((e) => e.ret3m)),
+    avgRet6m:       avg(evts.map((e) => e.ret6m)),
+    avgRet12m:      avg(evts.map((e) => e.ret12m)),
+    avgRet18m:      avg(evts.map((e) => e.ret18m)),
+    winRate3m:      wr(evts.map((e) => e.ret3m)),
+    winRate6m:      wr(evts.map((e) => e.ret6m)),
+    winRate12m:     wr(evts.map((e) => e.ret12m)),
+    winRate18m:     wr(evts.map((e) => e.ret18m)),
+    avgMaxDrawdown: avg(evts.map((e) => e.maxDrawdown)),
+  };
+}
+
+function computeSummary(
+  monthlyBars: RocMonthlyBar[],
+  rocValues:   (number | null)[],
+): RocOutcomeSummary {
+  return {
+    ob80:  buildThresholdStats(monthlyBars, rocValues,  80, "overbought"),
+    ob30:  buildThresholdStats(monthlyBars, rocValues,  30, "overbought"),
+    os_25: buildThresholdStats(monthlyBars, rocValues, -25, "oversold"),
+    os_10: buildThresholdStats(monthlyBars, rocValues, -10, "oversold"),
+    os0:   buildThresholdStats(monthlyBars, rocValues,   0, "oversold"),
   };
 }
 
@@ -341,7 +371,8 @@ const INDEX_CONFIG: Record<RocIndex, IndexConfig> = {
   smallcap100: {
     ticker: "NIFTY_SMALLCAP", label: "Nifty SmallCap 100",
     yf: null, dhan: { securityId: "3", exchangeSegment: "IDX_I" },
-    allTimeStart: new Date("2019-01-01"), minRows: 1500,
+    // Dhan only has SmallCap data from 2019. Pre-2019 history must come from CSV import.
+    allTimeStart: new Date("2019-01-13"), minRows: 1500,
   },
 };
 
@@ -561,7 +592,7 @@ export async function GET(req: Request) {
     const pctRank       = percentileRank(allRocValues.slice(0, -1), currentRoc);
 
     const extremeEvents = detectExtremeEvents(monthlyBars, rocValues);
-    const summary       = computeSummary(extremeEvents);
+    const summary       = computeSummary(monthlyBars, rocValues);
     const zone          = getZone(currentRoc);
     const signal        = getSignal(currentRoc, prevRoc, pctRank, summary);
 

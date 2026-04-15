@@ -35,19 +35,19 @@ export interface BbTouchEvent {
   lower:        number;
   percentB:     number;
   devFromLower: number;   // % below lower BB (negative = deeper below)
+  ret3m:        number | null;
   ret6m:        number | null;
   ret12m:       number | null;
   ret18m:       number | null;
-  ret24m:       number | null;
   maxDrawdown:  number | null;  // worst close in next 18M vs entry
 }
 
 export interface BbSummary {
   totalEvents:  number;
+  winRate3m:    number;  avgRet3m:   number;
   winRate6m:    number;  avgRet6m:   number;
   winRate12m:   number;  avgRet12m:  number;
   winRate18m:   number;  avgRet18m:  number;
-  winRate24m:   number;  avgRet24m:  number;
   avgMaxDrawdown: number;
   thesisScore:  number;  // winRate18m as the headline stat
 }
@@ -187,10 +187,10 @@ function detectTouchEvents(monthlyBars: BbMonthlyBar[], bbBars: BbBar[]): BbTouc
       lower:        b.lower,
       percentB:     b.percentB,
       devFromLower: parseFloat(((entryClose - b.lower) / b.lower * 100).toFixed(2)),
+      ret3m:        ret(fwdClose(3)),
       ret6m:        ret(fwdClose(6)),
       ret12m:       ret(fwdClose(12)),
       ret18m:       ret(fwdClose(18)),
-      ret24m:       ret(fwdClose(24)),
       maxDrawdown:  maxDd !== null ? parseFloat(maxDd.toFixed(2)) : null,
     });
 
@@ -213,10 +213,10 @@ function computeSummary(events: BbTouchEvent[]): BbSummary {
   const n = events.length;
   return {
     totalEvents:    n,
+    winRate3m:      wr(events.map((e) => e.ret3m)),   avgRet3m:   avg(events.map((e) => e.ret3m)),
     winRate6m:      wr(events.map((e) => e.ret6m)),   avgRet6m:   avg(events.map((e) => e.ret6m)),
     winRate12m:     wr(events.map((e) => e.ret12m)),  avgRet12m:  avg(events.map((e) => e.ret12m)),
     winRate18m:     wr(events.map((e) => e.ret18m)),  avgRet18m:  avg(events.map((e) => e.ret18m)),
-    winRate24m:     wr(events.map((e) => e.ret24m)),  avgRet24m:  avg(events.map((e) => e.ret24m)),
     avgMaxDrawdown: avg(events.map((e) => e.maxDrawdown)),
     thesisScore:    wr(events.map((e) => e.ret18m)),
   };
