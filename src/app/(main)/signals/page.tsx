@@ -1644,6 +1644,7 @@ import type { BbResponse, BbTouchEvent } from "@/app/api/bb/route";
 import type { BreadthResponse, AdBar, AdWeeklyBar } from "@/app/api/breadth/route";
 import type { Dma200Response, Dma200Bar } from "@/app/api/dma200/route";
 import type { LcResponse, LcBar } from "@/app/api/lc/route";
+import type { ZeroRResponse, ZeroREvent } from "@/app/api/zeror/route";
 
 // ─── RSI Dual Chart ────────────────────────────────────────────────────────────
 
@@ -3778,9 +3779,9 @@ function AdModal({ data, onClose }: { data: BreadthResponse; onClose: () => void
                   <div className="space-y-2.5">
                     <WinRateBar wr={activeStats.winRate15d} avg={activeStats.avgRet15d} label="15 Days"   />
                     <WinRateBar wr={activeStats.winRate1m}  avg={activeStats.avgRet1m}  label="1 Month"   />
-                    <WinRateBar wr={activeStats.winRate2m}  avg={activeStats.avgRet2m}  label="2 Months"  />
                     <WinRateBar wr={activeStats.winRate3m}  avg={activeStats.avgRet3m}  label="3 Months"  />
                     <WinRateBar wr={activeStats.winRate6m}  avg={activeStats.avgRet6m}  label="6 Months"  />
+                    <WinRateBar wr={activeStats.winRate12m} avg={activeStats.avgRet12m} label="12 Months" />
                     <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
                       <span className="text-[9px] text-slate-400 font-bold">{activeStats.totalEvents} events · Avg max drawdown</span>
                       <span className="text-[10px] font-black" style={{ color: "#ef4444" }}>{activeStats.avgMaxDrawdown.toFixed(1)}%</span>
@@ -3812,9 +3813,9 @@ function AdModal({ data, onClose }: { data: BreadthResponse; onClose: () => void
                         </div>
                         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px]">
                           {([
-                            { label: "15D", val: e.ret15d }, { label: "1M", val: e.ret1m },
-                            { label: "2M",  val: e.ret2m  }, { label: "3M", val: e.ret3m },
-                            { label: "6M",  val: e.ret6m  },
+                            { label: "15D", val: e.ret15d }, { label: "1M",  val: e.ret1m  },
+                            { label: "3M",  val: e.ret3m  }, { label: "6M",  val: e.ret6m  },
+                            { label: "12M", val: e.ret12m },
                           ] as { label: string; val: number | null }[]).map(({ label, val }) => (
                             <div key={label} className="flex items-center justify-between">
                               <span className="text-slate-400 font-bold">{label}</span>
@@ -3848,11 +3849,11 @@ function AdModal({ data, onClose }: { data: BreadthResponse; onClose: () => void
                 </div>
                 {activeWeeklyStats ? (
                   <div className="space-y-2.5">
-                    <WinRateBar wr={activeWeeklyStats.winRate15d} avg={activeWeeklyStats.avgRet15d} label="15 Days" />
-                    <WinRateBar wr={activeWeeklyStats.winRate1m}  avg={activeWeeklyStats.avgRet1m}  label="1 Month" />
-                    <WinRateBar wr={activeWeeklyStats.winRate2m}  avg={activeWeeklyStats.avgRet2m}  label="2 Months" />
-                    <WinRateBar wr={activeWeeklyStats.winRate3m}  avg={activeWeeklyStats.avgRet3m}  label="3 Months" />
-                    <WinRateBar wr={activeWeeklyStats.winRate6m}  avg={activeWeeklyStats.avgRet6m}  label="6 Months" />
+                    <WinRateBar wr={activeWeeklyStats.winRate15d} avg={activeWeeklyStats.avgRet15d} label="15 Days"   />
+                    <WinRateBar wr={activeWeeklyStats.winRate1m}  avg={activeWeeklyStats.avgRet1m}  label="1 Month"   />
+                    <WinRateBar wr={activeWeeklyStats.winRate3m}  avg={activeWeeklyStats.avgRet3m}  label="3 Months"  />
+                    <WinRateBar wr={activeWeeklyStats.winRate6m}  avg={activeWeeklyStats.avgRet6m}  label="6 Months"  />
+                    <WinRateBar wr={activeWeeklyStats.winRate12m} avg={activeWeeklyStats.avgRet12m} label="12 Months" />
                     <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
                       <span className="text-[9px] text-slate-400 font-bold">{activeWeeklyStats.totalEvents} events · Avg max drawdown</span>
                       <span className="text-[10px] font-black" style={{ color: "#ef4444" }}>{activeWeeklyStats.avgMaxDrawdown.toFixed(1)}%</span>
@@ -3885,8 +3886,8 @@ function AdModal({ data, onClose }: { data: BreadthResponse; onClose: () => void
                         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px]">
                           {([
                             { label: "15D", val: e.ret15d }, { label: "1M",  val: e.ret1m  },
-                            { label: "2M",  val: e.ret2m  }, { label: "3M",  val: e.ret3m  },
-                            { label: "6M",  val: e.ret6m  },
+                            { label: "3M",  val: e.ret3m  }, { label: "6M",  val: e.ret6m  },
+                            { label: "12M", val: e.ret12m },
                           ] as { label: string; val: number | null }[]).map(({ label, val }) => (
                             <div key={label} className="flex items-center justify-between">
                               <span className="text-slate-400 font-bold">{label}</span>
@@ -4338,9 +4339,7 @@ function Dma200Modal({ data, onClose }: { data: Dma200Response; onClose: () => v
 
             {activeStats ? (
               <div className="space-y-2.5">
-                <WinRateBar wr={activeStats.winRate15d} avg={activeStats.avgRet15d} label="15 Days"   />
                 <WinRateBar wr={activeStats.winRate1m}  avg={activeStats.avgRet1m}  label="1 Month"   />
-                <WinRateBar wr={activeStats.winRate2m}  avg={activeStats.avgRet2m}  label="2 Months"  />
                 <WinRateBar wr={activeStats.winRate3m}  avg={activeStats.avgRet3m}  label="3 Months"  />
                 <WinRateBar wr={activeStats.winRate6m}  avg={activeStats.avgRet6m}  label="6 Months"  />
                 <WinRateBar wr={activeStats.winRate12m} avg={activeStats.avgRet12m} label="12 Months" />
@@ -4372,11 +4371,6 @@ function Dma200Modal({ data, onClose }: { data: Dma200Response; onClose: () => v
                       <p className="text-[9px] text-slate-400">{e.pctAbove.toFixed(1)}% above · ₹{Math.round(e.nifty500Close).toLocaleString("en-IN")} N500</p>
                     </div>
                     <div className="text-right flex-shrink-0 space-y-0.5">
-                      {e.ret15d !== null && (
-                        <p className="text-[9px] font-black" style={{ color: e.ret15d >= 0 ? "#10b981" : "#ef4444" }}>
-                          {e.ret15d >= 0 ? "+" : ""}{e.ret15d}% <span className="text-slate-400 font-normal">15d</span>
-                        </p>
-                      )}
                       {e.ret3m !== null ? (
                         <p className="text-[9px] font-black" style={{ color: e.ret3m >= 0 ? "#10b981" : "#ef4444" }}>
                           {e.ret3m >= 0 ? "+" : ""}{e.ret3m}% <span className="text-slate-400 font-normal">3m</span>
@@ -4747,11 +4741,11 @@ function LcModal({ data, onClose }: { data: LcResponse; onClose: () => void }) {
 
             {activeStats ? (
               <div className="space-y-2.5">
-                <WinRateBar wr={activeStats.winRate5d}  avg={activeStats.avgRet5d}  label="5 Days"   />
-                <WinRateBar wr={activeStats.winRate10d} avg={activeStats.avgRet10d} label="10 Days"  />
-                <WinRateBar wr={activeStats.winRate20d} avg={activeStats.avgRet20d} label="20 Days"  />
-                <WinRateBar wr={activeStats.winRate1m}  avg={activeStats.avgRet1m}  label="1 Month"  />
-                <WinRateBar wr={activeStats.winRate3m}  avg={activeStats.avgRet3m}  label="3 Months" />
+                <WinRateBar wr={activeStats.winRate7d}  avg={activeStats.avgRet7d}  label="7 Days"    />
+                <WinRateBar wr={activeStats.winRate30d} avg={activeStats.avgRet30d} label="30 Days"   />
+                <WinRateBar wr={activeStats.winRate3m}  avg={activeStats.avgRet3m}  label="3 Months"  />
+                <WinRateBar wr={activeStats.winRate6m}  avg={activeStats.avgRet6m}  label="6 Months"  />
+                <WinRateBar wr={activeStats.winRate12m} avg={activeStats.avgRet12m} label="12 Months" />
                 <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
                   <span className="text-[9px] text-slate-400">Avg Max Drawdown</span>
                   <span className="text-[11px] font-black text-red-500">
@@ -4779,14 +4773,14 @@ function LcModal({ data, onClose }: { data: LcResponse; onClose: () => void }) {
                       <p className="text-[9px] text-slate-400">{e.pctLc.toFixed(1)}% LC · ₹{Math.round(e.nifty500Close).toLocaleString("en-IN")} N500</p>
                     </div>
                     <div className="text-right flex-shrink-0 space-y-0.5">
-                      {e.ret5d !== null && (
-                        <p className="text-[9px] font-black" style={{ color: e.ret5d >= 0 ? "#10b981" : "#ef4444" }}>
-                          {e.ret5d >= 0 ? "+" : ""}{e.ret5d}% <span className="text-slate-400 font-normal">5d</span>
+                      {e.ret7d !== null && (
+                        <p className="text-[9px] font-black" style={{ color: e.ret7d >= 0 ? "#10b981" : "#ef4444" }}>
+                          {e.ret7d >= 0 ? "+" : ""}{e.ret7d}% <span className="text-slate-400 font-normal">7d</span>
                         </p>
                       )}
-                      {e.ret1m !== null && (
-                        <p className="text-[9px] font-black" style={{ color: e.ret1m >= 0 ? "#10b981" : "#ef4444" }}>
-                          {e.ret1m >= 0 ? "+" : ""}{e.ret1m}% <span className="text-slate-400 font-normal">1m</span>
+                      {e.ret30d !== null && (
+                        <p className="text-[9px] font-black" style={{ color: e.ret30d >= 0 ? "#10b981" : "#ef4444" }}>
+                          {e.ret30d >= 0 ? "+" : ""}{e.ret30d}% <span className="text-slate-400 font-normal">30d</span>
                         </p>
                       )}
                       {e.ret3m !== null ? (
@@ -4868,10 +4862,10 @@ function LcIntelligenceCard() {
           {panicStats && (
             <div className="flex-shrink-0 px-3 py-1.5 rounded-lg border"
               style={{ borderColor: "#dc262630", background: "#dc262608" }}>
-              <p className="text-[8px] font-black text-slate-400 mb-0.5">{panicStats.totalEvents} panic events · 1M avg</p>
+              <p className="text-[8px] font-black text-slate-400 mb-0.5">{panicStats.totalEvents} panic events · 3M avg</p>
               <p className="text-xs font-black tabular-nums"
-                style={{ color: panicStats.avgRet1m >= 0 ? "#10b981" : "#ef4444" }}>
-                {panicStats.avgRet1m >= 0 ? "+" : ""}{panicStats.avgRet1m}%
+                style={{ color: panicStats.avgRet3m >= 0 ? "#10b981" : "#ef4444" }}>
+                {panicStats.avgRet3m >= 0 ? "+" : ""}{panicStats.avgRet3m}%
               </p>
             </div>
           )}
@@ -4886,6 +4880,502 @@ function LcIntelligenceCard() {
               <span>Normal</span>
               <span className="font-bold" style={{ color: sc }}>{data.currentPctLc.toFixed(1)}% stocks hitting LC</span>
               <span>Extreme ≥4%</span>
+            </div>
+          </div>
+
+        </div>
+      </motion.button>
+    </>
+  );
+}
+
+// ─── ZeroR Split Chart ────────────────────────────────────────────────────────
+
+function ZeroRSplitChart({
+  priceBars,
+  retBars,
+  indexLabel,
+  windowYears,
+}: {
+  priceBars:   { date: string; open: number; high: number; low: number; close: number }[];
+  retBars:     { date: string; retNY: number }[];
+  indexLabel:  string;
+  windowYears: number;
+}) {
+  const niftyRef     = useRef<HTMLDivElement>(null);
+  const retRef       = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const cleanupRef   = useRef<(() => void) | null>(null);
+  const [splitRatio, setSplitRatio] = useState(0.60);
+  const dragState = useRef({ dragging: false, startY: 0, startRatio: 0.60 });
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!dragState.current.dragging || !containerRef.current) return;
+      const rect  = containerRef.current.getBoundingClientRect();
+      const delta = (e.clientY - dragState.current.startY) / rect.height;
+      setSplitRatio(Math.min(0.85, Math.max(0.15, dragState.current.startRatio + delta)));
+    };
+    const onUp = () => { dragState.current.dragging = false; };
+    window.addEventListener("mousemove", onMove); window.addEventListener("mouseup", onUp);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+  }, []);
+
+  useEffect(() => {
+    if (!niftyRef.current || !retRef.current || priceBars.length < 2 || retBars.length < 2) return;
+    let removed = false;
+
+    (async () => {
+      const { createChart, CandlestickSeries, LineSeries, LineStyle } =
+        await import("lightweight-charts");
+      if (removed) return;
+
+      const SCALE_W = 64;
+      const LAYOUT = {
+        layout:    { background: { color: "#ffffff" }, textColor: "#374151", fontFamily: "Inter,system-ui,sans-serif", fontSize: 11 },
+        grid:      { vertLines: { color: "#f8fafc", style: LineStyle.Solid }, horzLines: { color: "#f3f4f6", style: LineStyle.Solid } },
+        crosshair: { mode: 1 },
+        autoSize:  true,
+      } as const;
+
+      // ── Top: price candlesticks ──
+      const niftyChart = createChart(niftyRef.current!, {
+        ...LAYOUT,
+        rightPriceScale: { borderColor: "#e5e7eb", scaleMargins: { top: 0.06, bottom: 0.02 }, minimumWidth: SCALE_W },
+        timeScale: { visible: false },
+      });
+      const niftySeries = niftyChart.addSeries(CandlestickSeries, {
+        upColor: "#10b981", downColor: "#ef4444",
+        borderUpColor: "#10b981", borderDownColor: "#ef4444",
+        wickUpColor: "#10b981", wickDownColor: "#ef4444",
+        priceLineVisible: false,
+      });
+      niftySeries.setData(priceBars.map((b) => ({
+        time: b.date as `${number}-${number}-${number}`,
+        open: b.open, high: b.high, low: b.low, close: b.close,
+      })));
+
+      // ── Bottom: N-year trailing return line ──
+      const retChart = createChart(retRef.current!, {
+        ...LAYOUT,
+        rightPriceScale: { borderColor: "#e5e7eb", scaleMargins: { top: 0.08, bottom: 0.08 }, minimumWidth: SCALE_W },
+        timeScale: { borderColor: "#e5e7eb", timeVisible: true, secondsVisible: false },
+      });
+      const retSeries = retChart.addSeries(LineSeries, {
+        color: "#6366f1", lineWidth: 2,
+        priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: true,
+      });
+      retSeries.setData(retBars.map((b) => ({
+        time:  b.date as `${number}-${number}-${number}`,
+        value: b.retNY,
+      })));
+
+      // Zero reference line only
+      retSeries.createPriceLine({ price: 0, color: "#64748b", lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: "0%  " });
+
+      niftyChart.timeScale().fitContent();
+      retChart.timeScale().fitContent();
+
+      // ── Sync ──
+      let syncing = false;
+      niftyChart.timeScale().subscribeVisibleTimeRangeChange((r) => {
+        if (syncing || !r) return; syncing = true; retChart.timeScale().setVisibleRange(r); syncing = false;
+      });
+      retChart.timeScale().subscribeVisibleTimeRangeChange((r) => {
+        if (syncing || !r) return; syncing = true; niftyChart.timeScale().setVisibleRange(r); syncing = false;
+      });
+      niftyChart.subscribeCrosshairMove((p) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (p.time) retChart.setCrosshairPosition(0, p.time as `${number}-${number}-${number}`, retSeries as any);
+        else        retChart.clearCrosshairPosition();
+      });
+      retChart.subscribeCrosshairMove((p) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (p.time) niftyChart.setCrosshairPosition(0, p.time as `${number}-${number}-${number}`, niftySeries as any);
+        else        niftyChart.clearCrosshairPosition();
+      });
+
+      cleanupRef.current = () => { niftyChart.remove(); retChart.remove(); };
+    })();
+
+    return () => { removed = true; cleanupRef.current?.(); cleanupRef.current = null; };
+  }, [priceBars, retBars]);
+
+  const DIVIDER_HIT = 9;
+  const topH = `calc(${(splitRatio * 100).toFixed(3)}% - ${Math.ceil(DIVIDER_HIT / 2)}px)`;
+  const botH = `calc(${((1 - splitRatio) * 100).toFixed(3)}% - ${Math.floor(DIVIDER_HIT / 2)}px)`;
+
+  return (
+    <div ref={containerRef} className="flex flex-col h-full select-none overflow-hidden bg-white">
+      <div className="relative flex-shrink-0" style={{ height: topH, overflow: "hidden" }}>
+        <div ref={niftyRef} className="absolute inset-0" />
+        <div className="absolute top-1.5 left-2 pointer-events-none z-10">
+          <span className="text-[9px] font-semibold tracking-widest uppercase" style={{ color: "#9ca3af" }}>{indexLabel} · Daily</span>
+        </div>
+      </div>
+      <div className="relative flex-shrink-0 cursor-row-resize z-20" style={{ height: DIVIDER_HIT }}
+        onMouseDown={(e) => { dragState.current = { dragging: true, startY: e.clientY, startRatio: splitRatio }; e.preventDefault(); }}>
+        <div className="absolute left-0 right-0" style={{ top: "50%", height: 1, background: "#e5e7eb", transform: "translateY(-50%)" }} />
+      </div>
+      <div className="relative flex-shrink-0" style={{ height: botH, overflow: "hidden" }}>
+        <div ref={retRef} className="absolute inset-0" />
+        <div className="absolute top-1.5 left-2 pointer-events-none z-10">
+          <span className="text-[9px] font-semibold tracking-widest uppercase" style={{ color: "#9ca3af" }}>{windowYears}Y Trailing Return · %</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ZeroR Zone config ────────────────────────────────────────────────────────
+
+const ZEROR_ZONE_COLOR = "#6366f1";
+
+const ZEROR_INDEX_KEYS = [
+  { key: "NIFTY50"        as const, label: "Nifty 50"         },
+  { key: "NIFTY100"       as const, label: "Nifty 100"        },
+  { key: "NIFTY500"       as const, label: "Nifty 500"        },
+  { key: "NIFTY_SMALLCAP" as const, label: "SmallCap 100"     },
+];
+
+// ─── ZeroR Modal ──────────────────────────────────────────────────────────────
+
+function ZeroRModal({ data, onClose }: { data: ZeroRResponse; onClose: () => void }) {
+  type IndexKey  = keyof ZeroRResponse["indices"];
+  type WindowKey = 1 | 2 | 3 | 4;
+
+  const [activeIndex,  setActiveIndex]  = useState<IndexKey>("NIFTY50");
+  const [activeWindow, setActiveWindow] = useState<WindowKey>(3);
+
+  const indexData  = data.indices[activeIndex];
+  const windowData = indexData?.windows[activeWindow];
+  const stats      = windowData?.zoneStats.belowZero ?? null;
+  const zoneEvents = (windowData?.extremeEvents ?? []).filter((e) => e.zoneType === "belowZero");
+  const retNY      = windowData?.currentRetNY ?? 0;
+
+  const retColor = Math.abs(retNY) <= 5 ? "#6366f1" : retNY > 0 ? "#10b981" : "#ef4444";
+
+  const statusLabel =
+    Math.abs(retNY) <= 5  ? "Near Zero" :
+    Math.abs(retNY) <= 10 ? "Near Flat" :
+    retNY > 20             ? "Strong Return" :
+    retNY > 0              ? "Positive" :
+    retNY < -20            ? "Deep Negative" : "Negative";
+
+  return (
+    <motion.div className="fixed inset-0 z-50 flex flex-col bg-white overflow-hidden"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}>
+
+      {/* ── Header ── */}
+      <div className="flex-shrink-0 px-3 sm:px-6 py-3 flex items-center gap-3 sm:gap-5 border-b border-slate-100 flex-wrap"
+        style={{ background: "#f8fafc" }}>
+
+        <div className="flex-shrink-0">
+          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex flex-col items-center justify-center shadow-sm bg-white"
+            style={{ border: `2px solid ${retColor}45` }}>
+            <span className="text-xs font-black leading-none tabular-nums" style={{ color: retColor }}>
+              {retNY >= 0 ? "+" : ""}{retNY.toFixed(1)}%
+            </span>
+            <span className="text-[8px] font-bold text-slate-400 mt-0.5 tracking-wide">{activeWindow}Y Ret</span>
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+            <span className="text-base sm:text-lg font-black text-slate-900">N-Year Zero Return</span>
+            <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full"
+              style={{ background: retColor, color: "#fff" }}>{statusLabel}</span>
+          </div>
+          <p className="hidden sm:block text-xs text-slate-500">
+            {indexData?.label} · {activeWindow}-year trailing return is {retNY >= 0 ? "+" : ""}{retNY.toFixed(1)}% as of {indexData?.currentDate}.
+            Near-zero readings historically mark key turning points.
+          </p>
+        </div>
+
+        <div className="flex-shrink-0 text-center px-3 sm:px-4 py-2 rounded-xl"
+          style={{ background: retColor + "12", border: `1px solid ${retColor}30` }}>
+          <p className="text-[8px] font-black tracking-widest uppercase text-slate-400 mb-0.5">{activeWindow}Y Return</p>
+          <p className="text-xl sm:text-2xl font-black leading-none tabular-nums" style={{ color: retColor }}>
+            {retNY >= 0 ? "+" : ""}{retNY.toFixed(1)}%
+          </p>
+          <p className="text-[9px] text-slate-400 mt-0.5">
+            {indexData ? `₹${Math.round(indexData.currentClose).toLocaleString("en-IN")}` : ""}
+          </p>
+        </div>
+
+        <button onClick={onClose}
+          className="w-8 h-8 rounded-lg flex items-center justify-center bg-white/80 text-slate-400 hover:text-slate-900 transition-all flex-shrink-0">
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* ── Index + Window toggles ── */}
+      <div className="flex-shrink-0 px-3 sm:px-6 py-2.5 flex items-center gap-3 border-b border-slate-100 bg-white flex-wrap">
+        {/* Index */}
+        <div className="flex items-center gap-1 bg-slate-50 rounded-lg p-0.5">
+          {ZEROR_INDEX_KEYS.map(({ key, label }) => (
+            <button key={key} onClick={() => setActiveIndex(key)}
+              className="text-[10px] font-bold px-2.5 py-1.5 rounded-md transition-all"
+              style={activeIndex === key
+                ? { background: "#6366f1", color: "#fff" }
+                : { color: "#64748b" }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {/* Window */}
+        <div className="flex items-center gap-1 bg-slate-50 rounded-lg p-0.5">
+          {([1, 2, 3, 4] as WindowKey[]).map((w) => (
+            <button key={w} onClick={() => setActiveWindow(w)}
+              className="text-[10px] font-bold px-2.5 py-1.5 rounded-md transition-all"
+              style={activeWindow === w
+                ? { background: "#6366f1", color: "#fff" }
+                : { color: "#64748b" }}>
+              {w}Y
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Body ── */}
+      <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden min-h-0">
+
+        {/* ── Left: Chart ── */}
+        <div className="h-[45vh] md:h-auto md:flex-1 flex-shrink-0 md:flex-shrink flex flex-col px-3 sm:px-5 pt-4 pb-3 min-w-0">
+          <p className="text-[10px] font-black tracking-widest uppercase text-slate-400 mb-3 flex-shrink-0">
+            {indexData?.label} × {activeWindow}-Year Rolling Return · Zone Analysis
+          </p>
+          <div className="flex-1 min-h-0 rounded-xl overflow-hidden border border-slate-100">
+            {indexData && windowData && (
+              <ZeroRSplitChart
+                key={`${activeIndex}-${activeWindow}`}
+                priceBars={indexData.priceBars}
+                retBars={windowData.bars}
+                indexLabel={indexData.label}
+                windowYears={activeWindow}
+              />
+            )}
+          </div>
+          {/* Legend */}
+          <div className="flex-shrink-0 mt-2 flex items-center gap-2">
+            <div className="w-6 h-px" style={{ background: "#64748b" }} />
+            <span className="text-[9px] text-slate-500 font-bold">0% line — zero return threshold</span>
+          </div>
+        </div>
+
+        {/* ── Right: Stats panel ── */}
+        <div className="md:w-72 flex-shrink-0 border-t md:border-t-0 md:border-l border-slate-100 flex flex-col overflow-y-auto">
+
+          {/* Current reading */}
+          <div className="p-4 border-b border-slate-100">
+            <p className="text-[9px] font-black tracking-widest uppercase text-slate-400 mb-3">Current Reading</p>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-[9px] text-slate-400">{activeWindow}Y Trailing Return</p>
+                <p className="text-2xl font-black tabular-nums" style={{ color: retColor }}>
+                  {retNY >= 0 ? "+" : ""}{retNY.toFixed(1)}%
+                </p>
+              </div>
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full"
+                style={{ background: retColor + "20", color: retColor }}>{statusLabel}</span>
+            </div>
+            {/* Return gauge: -30% to +30% */}
+            <div className="relative h-3 rounded-full bg-slate-100 overflow-hidden">
+              {/* Zero center line */}
+              <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-300 z-10" />
+              {/* Fill from center */}
+              <div className="absolute top-0 bottom-0 rounded-full transition-all duration-700"
+                style={{
+                  left:  retNY >= 0 ? "50%" : `${Math.max(0, 50 + retNY / 60 * 100)}%`,
+                  width: `${Math.min(50, Math.abs(retNY) / 60 * 100)}%`,
+                  background: retColor,
+                }} />
+            </div>
+            <div className="flex justify-between text-[8px] text-slate-400 mt-0.5 font-bold">
+              <span>-30%</span><span>0%</span><span>+30%</span>
+            </div>
+          </div>
+
+          {/* Zone forward returns */}
+          <div className="p-4 border-b border-slate-100">
+            <p className="text-[9px] font-black tracking-widest uppercase text-slate-400 mb-2.5">After ≤0% Entry · Forward Returns</p>
+            <div className="mb-3">
+              <span className="text-[10px] font-black px-2 py-1 rounded-lg"
+                style={{ background: ZEROR_ZONE_COLOR, color: "#fff" }}>≤ 0%</span>
+            </div>
+
+            {stats ? (
+              <div className="space-y-2.5">
+                <WinRateBar wr={stats.winRate3m}   avg={stats.avgRet3m}   label="3 Months"  />
+                <WinRateBar wr={stats.winRate6m}   avg={stats.avgRet6m}   label="6 Months"  />
+                <WinRateBar wr={stats.winRate12m}  avg={stats.avgRet12m}  label="12 Months" />
+                <WinRateBar wr={stats.winRate18m}  avg={stats.avgRet18m}  label="18 Months" />
+                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-[9px] text-slate-400">Avg Max Drawdown (18M)</span>
+                  <span className="text-[11px] font-black text-red-500">
+                    {stats.avgMaxDrawdown >= 0 ? "+" : ""}{stats.avgMaxDrawdown}%
+                  </span>
+                </div>
+                <p className="text-[8px] text-slate-400">{stats.totalEvents} zone entries in dataset</p>
+              </div>
+            ) : (
+              <p className="text-[10px] text-slate-400 italic">No entries in this zone for {activeWindow}Y window.</p>
+            )}
+          </div>
+
+          {/* Events list */}
+          {zoneEvents.length > 0 && (
+            <div className="p-4">
+              <p className="text-[9px] font-black tracking-widets uppercase text-slate-400 mb-2">
+                All ≤0% Entries ({zoneEvents.length})
+              </p>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {([...zoneEvents] as ZeroREvent[]).reverse().map((e, i) => (
+                  <div key={i} className="flex items-start justify-between gap-2 py-1.5 border-b border-slate-50 last:border-0">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-700">{e.date.slice(0, 7)}</p>
+                      <p className="text-[9px] text-slate-400">
+                        {e.retNY >= 0 ? "+" : ""}{e.retNY.toFixed(1)}% ret · ₹{Math.round(e.indexClose).toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0 space-y-0.5">
+                      {e.ret12m !== null && (
+                        <p className="text-[9px] font-black" style={{ color: e.ret12m >= 0 ? "#10b981" : "#ef4444" }}>
+                          {e.ret12m >= 0 ? "+" : ""}{e.ret12m}% <span className="text-slate-400 font-normal">12m</span>
+                        </p>
+                      )}
+                      {e.ret18m !== null ? (
+                        <p className="text-[9px] font-black" style={{ color: e.ret18m >= 0 ? "#10b981" : "#ef4444" }}>
+                          {e.ret18m >= 0 ? "+" : ""}{e.ret18m}% <span className="text-slate-400 font-normal">18m</span>
+                        </p>
+                      ) : <p className="text-[9px] text-slate-300">—</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── ZeroR Intelligence Card (compact) ───────────────────────────────────────
+
+function ZeroRIntelligenceCard() {
+  const { data } = useSWR<ZeroRResponse>("/api/zeror", fetcher, { refreshInterval: 600_000 });
+  const [modalOpen, setModalOpen] = useState(false);
+
+  if (!data?.hasData) return null;
+
+  // Default view: Nifty 50, 3-year window
+  const indexData  = data.indices.NIFTY50;
+  const windowData = indexData?.windows[3];
+  const retNY      = windowData?.currentRetNY ?? 0;
+
+  const retColor =
+    Math.abs(retNY) <= 5  ? "#6366f1" :
+    Math.abs(retNY) <= 10 ? "#8b5cf6" :
+    retNY > 0              ? "#10b981" : "#ef4444";
+
+  const statusLabel =
+    Math.abs(retNY) <= 5  ? "Near Zero" :
+    Math.abs(retNY) <= 10 ? "Near Flat" :
+    retNY > 20             ? "Strong Return" :
+    retNY > 0              ? "Positive" :
+    retNY < -20            ? "Deep Negative" : "Negative";
+
+  const flatStats = windowData?.zoneStats.belowZero ?? null;
+
+  return (
+    <>
+      {typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {modalOpen && <ZeroRModal data={data} onClose={() => setModalOpen(false)} />}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      <motion.button onClick={() => setModalOpen(true)}
+        className="w-full rounded-xl text-left overflow-hidden bg-white shadow-sm"
+        style={{ border: `1.5px solid ${retColor}35` }}
+        whileHover={{ scale: 1.004, boxShadow: `0 4px 20px ${retColor}18` }}
+        transition={{ duration: 0.15 }}>
+
+        <div className="px-5 py-4 flex items-center gap-5 flex-wrap">
+
+          {/* Icon + value */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: retColor + "15", border: `1px solid ${retColor}40` }}>
+              <Layers size={16} style={{ color: retColor }} />
+            </div>
+            <div>
+              <p className="text-[8px] font-black tracking-widest uppercase text-slate-400">N-Year Zero Return · Nifty 50</p>
+              <div className="flex items-baseline gap-1.5 mt-0.5">
+                <span className="text-xl font-black tabular-nums leading-none" style={{ color: retColor }}>
+                  {retNY >= 0 ? "+" : ""}{retNY.toFixed(1)}%
+                </span>
+                <span className="text-[10px] font-bold text-slate-400">3Y trailing</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Status badge */}
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px] font-black px-2 py-0.5 rounded-full w-fit"
+              style={{ background: retColor + "20", color: retColor }}>{statusLabel}</span>
+            <span className="text-[9px] text-slate-400 pl-0.5">
+              {Math.abs(retNY) <= 10 ? "Historically significant zone" : "Normal range"}
+            </span>
+          </div>
+
+          {/* Stats if near-zero episodes found */}
+          {flatStats && (
+            <div className="flex-shrink-0 px-3 py-1.5 rounded-lg border"
+              style={{ borderColor: retColor + "30", background: retColor + "08" }}>
+              <p className="text-[8px] font-black text-slate-400 mb-0.5">{flatStats.totalEvents} near-zero episodes · 12M avg</p>
+              <p className="text-xs font-black tabular-nums"
+                style={{ color: flatStats.avgRet12m >= 0 ? "#10b981" : "#ef4444" }}>
+                {flatStats.avgRet12m >= 0 ? "+" : ""}{flatStats.avgRet12m}%
+              </p>
+            </div>
+          )}
+
+          {/* Multi-window snapshot */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {([1, 2, 3, 4] as const).map((w) => {
+              const wd = indexData?.windows[w];
+              const r  = wd?.currentRetNY ?? 0;
+              const c  = Math.abs(r) <= 10 ? "#6366f1" : r > 0 ? "#10b981" : "#ef4444";
+              return (
+                <div key={w} className="flex flex-col items-center">
+                  <span className="text-[10px] font-black tabular-nums" style={{ color: c }}>
+                    {r >= 0 ? "+" : ""}{r.toFixed(0)}%
+                  </span>
+                  <span className="text-[8px] text-slate-400">{w}Y</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Return gauge: -30% to +30% around zero */}
+          <div className="w-full">
+            <div className="relative h-1.5 rounded-full overflow-hidden bg-slate-100">
+              <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-400" />
+              <div className="absolute top-0 bottom-0 rounded-full transition-all duration-700"
+                style={{
+                  left:  retNY >= 0 ? "50%" : `${Math.max(2, 50 + retNY / 60 * 100)}%`,
+                  width: `${Math.min(48, Math.abs(retNY) / 60 * 100)}%`,
+                  background: retColor,
+                }} />
+            </div>
+            <div className="flex justify-between text-[8px] text-slate-400 mt-0.5">
+              <span>-30%</span>
+              <span className="font-bold" style={{ color: retColor }}>3Y: {retNY >= 0 ? "+" : ""}{retNY.toFixed(1)}%</span>
+              <span>+30%</span>
             </div>
           </div>
 
@@ -5021,6 +5511,7 @@ function ClassView({ cls, onSelect }: { cls: AssetClassData; onSelect: (a: Asset
           <AdIntelligenceCard />
           <Dma200IntelligenceCard />
           <LcIntelligenceCard />
+          <ZeroRIntelligenceCard />
         </div>
       )}
 

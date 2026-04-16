@@ -26,21 +26,21 @@ export interface LcEvent {
   nifty500Close: number;
   zoneLabel:     string;
   zoneType:      "extremePanic25" | "extremePanic10" | "extremePanic5" | "extremePanic";
-  ret5d:         number | null;
-  ret10d:        number | null;
-  ret20d:        number | null;
-  ret1m:         number | null;
+  ret7d:         number | null;
+  ret30d:        number | null;
   ret3m:         number | null;
+  ret6m:         number | null;
+  ret12m:        number | null;
   maxDrawdown:   number | null;
 }
 
 export interface LcStats {
   totalEvents:    number;
-  winRate5d:      number; avgRet5d:  number;
-  winRate10d:     number; avgRet10d: number;
-  winRate20d:     number; avgRet20d: number;
-  winRate1m:      number; avgRet1m:  number;
-  winRate3m:      number; avgRet3m:  number;
+  winRate7d:      number; avgRet7d:   number;
+  winRate30d:     number; avgRet30d:  number;
+  winRate3m:      number; avgRet3m:   number;
+  winRate6m:      number; avgRet6m:   number;
+  winRate12m:     number; avgRet12m:  number;
   avgMaxDrawdown: number;
 }
 
@@ -87,11 +87,11 @@ function buildLcStats(events: LcEvent[]): LcStats | null {
   };
   return {
     totalEvents:    events.length,
-    winRate5d:      wr(events.map((e) => e.ret5d)),   avgRet5d:  avg(events.map((e) => e.ret5d)),
-    winRate10d:     wr(events.map((e) => e.ret10d)),  avgRet10d: avg(events.map((e) => e.ret10d)),
-    winRate20d:     wr(events.map((e) => e.ret20d)),  avgRet20d: avg(events.map((e) => e.ret20d)),
-    winRate1m:      wr(events.map((e) => e.ret1m)),   avgRet1m:  avg(events.map((e) => e.ret1m)),
-    winRate3m:      wr(events.map((e) => e.ret3m)),   avgRet3m:  avg(events.map((e) => e.ret3m)),
+    winRate7d:      wr(events.map((e) => e.ret7d)),   avgRet7d:   avg(events.map((e) => e.ret7d)),
+    winRate30d:     wr(events.map((e) => e.ret30d)),  avgRet30d:  avg(events.map((e) => e.ret30d)),
+    winRate3m:      wr(events.map((e) => e.ret3m)),   avgRet3m:   avg(events.map((e) => e.ret3m)),
+    winRate6m:      wr(events.map((e) => e.ret6m)),   avgRet6m:   avg(events.map((e) => e.ret6m)),
+    winRate12m:     wr(events.map((e) => e.ret12m)),  avgRet12m:  avg(events.map((e) => e.ret12m)),
     avgMaxDrawdown: avg(events.map((e) => e.maxDrawdown)),
   };
 }
@@ -211,9 +211,9 @@ export async function GET() {
         const ret = (c: number | null) =>
           c !== null ? parseFloat(((c - entryClose) / entryClose * 100).toFixed(2)) : null;
 
-        // Max drawdown over next 1 month (~30 cal days, sampled daily)
+        // Max drawdown over next 12 months (~365 cal days, sampled daily)
         let maxDd: number | null = null;
-        for (let d = 1; d <= 30; d++) {
+        for (let d = 1; d <= 365; d++) {
           const c = fwdClose(bar.date, d);
           if (c === null) continue;
           const dd = (c - entryClose) / entryClose * 100;
@@ -226,11 +226,11 @@ export async function GET() {
           nifty500Close: entryClose,
           zoneLabel:     cfg.label,
           zoneType:      cfg.type,
-          ret5d:         ret(fwdClose(bar.date, 7)),
-          ret10d:        ret(fwdClose(bar.date, 14)),
-          ret20d:        ret(fwdClose(bar.date, 28)),
-          ret1m:         ret(fwdClose(bar.date, 30)),
+          ret7d:         ret(fwdClose(bar.date, 7)),
+          ret30d:        ret(fwdClose(bar.date, 30)),
           ret3m:         ret(fwdClose(bar.date, 91)),
+          ret6m:         ret(fwdClose(bar.date, 182)),
+          ret12m:        ret(fwdClose(bar.date, 365)),
           maxDrawdown:   maxDd !== null ? parseFloat(maxDd.toFixed(2)) : null,
         });
       }

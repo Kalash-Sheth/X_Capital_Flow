@@ -33,6 +33,7 @@ export interface AdZoneEvent {
   ret2m:          number | null;
   ret3m:          number | null;
   ret6m:          number | null;
+  ret12m:         number | null;
   maxDrawdown:    number | null;
 }
 
@@ -40,9 +41,9 @@ export interface AdZoneStats {
   totalEvents:    number;
   winRate15d:     number; avgRet15d: number;
   winRate1m:      number; avgRet1m:  number;
-  winRate2m:      number; avgRet2m:  number;
   winRate3m:      number; avgRet3m:  number;
   winRate6m:      number; avgRet6m:  number;
+  winRate12m:     number; avgRet12m: number;
   avgMaxDrawdown: number;
 }
 
@@ -62,6 +63,7 @@ export interface AdWeeklyEvent {
   ret2m:         number | null;   // 2 months (60 cal days)
   ret3m:         number | null;   // 3 months (91 cal days)
   ret6m:         number | null;   // 6 months (182 cal days)
+  ret12m:        number | null;   // 12 months (365 cal days)
   maxDrawdown:   number | null;
 }
 
@@ -69,9 +71,9 @@ export interface AdWeeklyStats {
   totalEvents:    number;
   winRate15d:     number; avgRet15d: number;
   winRate1m:      number; avgRet1m:  number;
-  winRate2m:      number; avgRet2m:  number;
   winRate3m:      number; avgRet3m:  number;
   winRate6m:      number; avgRet6m:  number;
+  winRate12m:     number; avgRet12m: number;
   avgMaxDrawdown: number;
 }
 
@@ -159,9 +161,9 @@ function buildZoneStats(events: AdZoneEvent[]): AdZoneStats | null {
     totalEvents:    events.length,
     winRate15d:     wr(events.map((e) => e.ret15d)),  avgRet15d: avg(events.map((e) => e.ret15d)),
     winRate1m:      wr(events.map((e) => e.ret1m)),   avgRet1m:  avg(events.map((e) => e.ret1m)),
-    winRate2m:      wr(events.map((e) => e.ret2m)),   avgRet2m:  avg(events.map((e) => e.ret2m)),
     winRate3m:      wr(events.map((e) => e.ret3m)),   avgRet3m:  avg(events.map((e) => e.ret3m)),
     winRate6m:      wr(events.map((e) => e.ret6m)),   avgRet6m:  avg(events.map((e) => e.ret6m)),
+    winRate12m:     wr(events.map((e) => e.ret12m)),  avgRet12m: avg(events.map((e) => e.ret12m)),
     avgMaxDrawdown: avg(events.map((e) => e.maxDrawdown)),
   };
 }
@@ -180,9 +182,9 @@ function buildWeeklyZoneStats(events: AdWeeklyEvent[]): AdWeeklyStats | null {
     totalEvents:    events.length,
     winRate15d:     wr(events.map((e) => e.ret15d)),  avgRet15d: avg(events.map((e) => e.ret15d)),
     winRate1m:      wr(events.map((e) => e.ret1m)),   avgRet1m:  avg(events.map((e) => e.ret1m)),
-    winRate2m:      wr(events.map((e) => e.ret2m)),   avgRet2m:  avg(events.map((e) => e.ret2m)),
     winRate3m:      wr(events.map((e) => e.ret3m)),   avgRet3m:  avg(events.map((e) => e.ret3m)),
     winRate6m:      wr(events.map((e) => e.ret6m)),   avgRet6m:  avg(events.map((e) => e.ret6m)),
+    winRate12m:     wr(events.map((e) => e.ret12m)),  avgRet12m: avg(events.map((e) => e.ret12m)),
     avgMaxDrawdown: avg(events.map((e) => e.maxDrawdown)),
   };
 }
@@ -320,6 +322,7 @@ export async function GET() {
           ret2m:         ret(fwdCloseDaily(db.date, 60)),
           ret3m:         ret(fwdCloseDaily(db.date, 91)),
           ret6m:         ret(fwdCloseDaily(db.date, 182)),
+          ret12m:        ret(fwdCloseDaily(db.date, 365)),
           maxDrawdown:   maxDd !== null ? parseFloat(maxDd.toFixed(2)) : null,
         });
       }
@@ -405,6 +408,7 @@ export async function GET() {
           ret2m:         ret(fwdCloseDaily(wb.date, 60)),
           ret3m:         ret(fwdCloseDaily(wb.date, 91)),
           ret6m:         ret(fwdCloseDaily(wb.date, 182)),
+          ret12m:        ret(fwdCloseDaily(wb.date, 365)),
           maxDrawdown:   maxDd !== null ? parseFloat(maxDd.toFixed(2)) : null,
         });
       }
