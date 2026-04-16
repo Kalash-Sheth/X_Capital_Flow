@@ -1,9 +1,10 @@
 // GET /api/lc
-// % of Nifty 100 stocks hitting Lower Circuit (approximation) × Nifty 100 index OHLC.
+// % of Nifty 500 stocks hitting Lower Circuit (approximation) × Nifty 500 index OHLC.
 //
 // LC approximation:
 //   (close - prev_close) / prev_close  ≤  -0.09   (dropped ≥ 9%)
-//   AND (close - low) / close          ≤  0.003   (close within 0.3% of day's low)
+//   Most Nifty 500 mid/small caps have 10% lower circuit limits — a ≥9% drop
+//   is the closest proxy for a stock being locked at its lower circuit.
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -22,13 +23,14 @@ export interface LcBar {
 export interface LcEvent {
   date:          string;
   pctLc:         number;
-  nifty100Close: number;
+  nifty500Close: number;
   zoneLabel:     string;
-  zoneType:      "extremePanic" | "highStress";
+  zoneType:      "extremePanic25" | "extremePanic10" | "extremePanic5" | "extremePanic";
   ret5d:         number | null;
   ret10d:        number | null;
   ret20d:        number | null;
   ret1m:         number | null;
+  ret3m:         number | null;
   maxDrawdown:   number | null;
 }
 
@@ -38,10 +40,11 @@ export interface LcStats {
   winRate10d:     number; avgRet10d: number;
   winRate20d:     number; avgRet20d: number;
   winRate1m:      number; avgRet1m:  number;
+  winRate3m:      number; avgRet3m:  number;
   avgMaxDrawdown: number;
 }
 
-export interface Nifty100DailyBar {
+export interface Nifty500DailyBar {
   date:  string;
   open:  number;
   high:  number;
@@ -54,7 +57,7 @@ export type LcStatus = "Extreme Panic" | "High Stress" | "Elevated" | "Normal";
 export interface LcResponse {
   hasData:        boolean;
   bars:           LcBar[];
-  nifty100Bars:   Nifty100DailyBar[];
+  nifty500Bars:   Nifty500DailyBar[];
   currentDate:    string;
   currentPctLc:   number;
   currentLcCount: number;
@@ -62,8 +65,10 @@ export interface LcResponse {
   lcStatus:       LcStatus;
   extremeEvents:  LcEvent[];
   zoneStats: {
-    extremePanic: LcStats | null;
-    highStress:   LcStats | null;
+    extremePanic25: LcStats | null;
+    extremePanic10: LcStats | null;
+    extremePanic5:  LcStats | null;
+    extremePanic:   LcStats | null;
   };
 }
 
@@ -86,13 +91,13 @@ function buildLcStats(events: LcEvent[]): LcStats | null {
     winRate10d:     wr(events.map((e) => e.ret10d)),  avgRet10d: avg(events.map((e) => e.ret10d)),
     winRate20d:     wr(events.map((e) => e.ret20d)),  avgRet20d: avg(events.map((e) => e.ret20d)),
     winRate1m:      wr(events.map((e) => e.ret1m)),   avgRet1m:  avg(events.map((e) => e.ret1m)),
+    winRate3m:      wr(events.map((e) => e.ret3m)),   avgRet3m:  avg(events.map((e) => e.ret3m)),
     avgMaxDrawdown: avg(events.map((e) => e.maxDrawdown)),
   };
 }
 
 function getLcStatus(pct: number): LcStatus {
   if (pct >= 2.5) return "Extreme Panic";
-  if (pct >= 1)   return "High Stress";
   if (pct > 0)    return "Elevated";
   return "Normal";
 }
@@ -101,8 +106,9 @@ function getLcStatus(pct: number): LcStatus {
 
 export async function GET() {
   try {
-    // 1. Compute daily % of Nifty 100 stocks hitting lower circuit approximation.
-    //    LC criteria: daily return ≤ -9%  AND  close within 0.3% of day's low.
+    // 1. Compute daily % of Nifty 500 stocks hitting lower circuit approximation.
+    //    LC criteria: daily return ≤ -9%  (proxy for 10% lower circuit — most common
+    //    circuit limit for Nifty 500 mid/small caps). No close-near-low filter needed.
     const rows = await prisma.$queryRaw<
       { date: Date; lc_count: bigint; total: bigint }[]
     >`
@@ -111,9 +117,8 @@ export async function GET() {
           "stockId",
           date,
           close,
-          low,
           LAG(close) OVER (PARTITION BY "stockId" ORDER BY date) AS prev_close
-        FROM "Nifty100Price"
+        FROM "Nifty500Price"
       ),
       flags AS (
         SELECT
@@ -122,8 +127,7 @@ export async function GET() {
             WHEN prev_close IS NOT NULL
               AND close > 0
               AND prev_close > 0
-              AND (close - prev_close) / prev_close <= -0.05
-              AND (close - low) / close <= 0.003
+              AND (close - prev_close) / prev_close <= -0.09
             THEN 1 ELSE 0
           END AS is_lc,
           CASE WHEN prev_close IS NOT NULL THEN 1 ELSE 0 END AS counted
@@ -136,7 +140,7 @@ export async function GET() {
       FROM flags
       WHERE date >= '2010-01-01'
       GROUP BY date
-      HAVING SUM(counted) >= 50
+      HAVING SUM(counted) >= 250
       ORDER BY date
     `;
 
@@ -152,9 +156,9 @@ export async function GET() {
       pctLc:   parseFloat((Number(r.lc_count) / Number(r.total) * 100).toFixed(2)),
     }));
 
-    // 3. Nifty 100 index prices for chart + forward return lookups
+    // 3. Nifty 500 index prices for chart + forward return lookups
     const niftyAsset = await prisma.asset.findUnique({
-      where:   { ticker: "NIFTY100" },
+      where:   { ticker: "NIFTY500" },
       include: { priceData: { orderBy: { timestamp: "asc" }, select: { timestamp: true, open: true, high: true, low: true, close: true } } },
     });
 
@@ -179,8 +183,10 @@ export async function GET() {
 
     // 4. Zone event detection on daily bars (cooldown = 5 trading days)
     const ZONE_CONFIGS: { type: LcEvent["zoneType"]; label: string; enter: (p: number) => boolean }[] = [
-      { type: "extremePanic", label: "Extreme Panic (≥ 2.5%)", enter: (p) => p >= 2.5 },
-      { type: "highStress",   label: "High Stress (1%–2.5%)",  enter: (p) => p >= 1 && p < 2.5 },
+      { type: "extremePanic25", label: "Extreme Panic (≥ 25%)",    enter: (p) => p >= 25              },
+      { type: "extremePanic10", label: "Extreme Panic (10%–25%)",  enter: (p) => p >= 10 && p < 25  },
+      { type: "extremePanic5",  label: "Extreme Panic (5%–10%)",   enter: (p) => p >= 5  && p < 10  },
+      { type: "extremePanic",   label: "Extreme Panic (2.5%–5%)",  enter: (p) => p >= 2.5 && p < 5  },
     ];
 
     const extremeEvents: LcEvent[] = [];
@@ -217,13 +223,14 @@ export async function GET() {
         extremeEvents.push({
           date:          bar.date,
           pctLc:         bar.pctLc,
-          nifty100Close: entryClose,
+          nifty500Close: entryClose,
           zoneLabel:     cfg.label,
           zoneType:      cfg.type,
           ret5d:         ret(fwdClose(bar.date, 7)),
           ret10d:        ret(fwdClose(bar.date, 14)),
           ret20d:        ret(fwdClose(bar.date, 28)),
           ret1m:         ret(fwdClose(bar.date, 30)),
+          ret3m:         ret(fwdClose(bar.date, 91)),
           maxDrawdown:   maxDd !== null ? parseFloat(maxDd.toFixed(2)) : null,
         });
       }
@@ -234,8 +241,10 @@ export async function GET() {
     // 5. Zone stats
     const byType   = (t: LcEvent["zoneType"]) => extremeEvents.filter((e) => e.zoneType === t);
     const zoneStats = {
-      extremePanic: buildLcStats(byType("extremePanic")),
-      highStress:   buildLcStats(byType("highStress")),
+      extremePanic25: buildLcStats(byType("extremePanic25")),
+      extremePanic10: buildLcStats(byType("extremePanic10")),
+      extremePanic5:  buildLcStats(byType("extremePanic5")),
+      extremePanic:   buildLcStats(byType("extremePanic")),
     };
 
     // 6. Current values
@@ -245,7 +254,7 @@ export async function GET() {
     return NextResponse.json({
       hasData:        true,
       bars:           allBars,
-      nifty100Bars:   niftyBarsRaw,
+      nifty500Bars:   niftyBarsRaw,
       currentDate:    last.date,
       currentPctLc:   last.pctLc,
       currentLcCount: last.lcCount,

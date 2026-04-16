@@ -18,7 +18,7 @@ export interface Dma200Bar {
 export interface Dma200ZoneEvent {
   date:           string;
   pctAbove:       number;
-  nifty100Close:  number;
+  nifty500Close:  number;
   zoneLabel:      string;
   zoneType:       "strongBear" | "bear" | "bull" | "strongBull";
   ret15d:         number | null;
@@ -43,7 +43,7 @@ export interface Dma200ZoneStats {
   avgMaxDrawdown: number;
 }
 
-export interface Nifty100MonthlyBar {
+export interface Nifty500MonthlyBar {
   date:  string;
   open:  number;
   high:  number;
@@ -56,7 +56,7 @@ export type Dma200Status = "Strong Bull" | "Bull" | "Neutral" | "Bear" | "Strong
 export interface Dma200Response {
   hasData:         boolean;
   bars:            Dma200Bar[];
-  nifty100Bars:    Nifty100MonthlyBar[];
+  nifty500Bars:    Nifty500MonthlyBar[];
   currentDate:     string;
   currentPctAbove: number;
   currentAbove:    number;
@@ -75,8 +75,8 @@ export interface Dma200Response {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function toMonthly(bars: { date: string; open: number; high: number; low: number; close: number }[]): Nifty100MonthlyBar[] {
-  const groups = new Map<string, Nifty100MonthlyBar>();
+function toMonthly(bars: { date: string; open: number; high: number; low: number; close: number }[]): Nifty500MonthlyBar[] {
+  const groups = new Map<string, Nifty500MonthlyBar>();
   for (const b of bars) {
     const key = b.date.slice(0, 7) + "-01";
     const ex  = groups.get(key);
@@ -147,7 +147,7 @@ export async function GET() {
             ORDER BY date
             ROWS BETWEEN 199 PRECEDING AND CURRENT ROW
           ) AS cnt
-        FROM "Nifty100Price"
+        FROM "Nifty500Price"
       ),
       daily AS (
         SELECT date,
@@ -155,7 +155,7 @@ export async function GET() {
           SUM(CASE WHEN cnt >= 200               THEN 1 ELSE 0 END)::bigint AS total
         FROM sma
         GROUP BY date
-        HAVING SUM(CASE WHEN cnt >= 200 THEN 1 ELSE 0 END) >= 50
+        HAVING SUM(CASE WHEN cnt >= 200 THEN 1 ELSE 0 END) >= 250
       )
       SELECT * FROM daily
       WHERE date >= '2010-01-01'
@@ -176,7 +176,7 @@ export async function GET() {
 
     // 3. Nifty 500 index prices (all history for forward-return look-up)
     const niftyAsset = await prisma.asset.findUnique({
-      where:   { ticker: "NIFTY100" },
+      where:   { ticker: "NIFTY500" },
       include: { priceData: { orderBy: { timestamp: "asc" }, select: { timestamp: true, open: true, high: true, low: true, close: true } } },
     });
 
@@ -261,7 +261,7 @@ export async function GET() {
         extremeEvents.push({
           date:          mb.date,
           pctAbove:      mb.pctAbove,
-          nifty100Close: entryClose,
+          nifty500Close: entryClose,
           zoneLabel:     cfg.label,
           zoneType:      cfg.type,
           ret15d:        ret(fwdCloseDaily(mb.date, 21)),
@@ -305,7 +305,7 @@ export async function GET() {
     return NextResponse.json({
       hasData:         true,
       bars:            allBars,
-      nifty100Bars:    monthlyNiftyBars,
+      nifty500Bars:    monthlyNiftyBars,
       currentDate:     last.date,
       currentPctAbove: last.pctAbove,
       currentAbove:    last.above,

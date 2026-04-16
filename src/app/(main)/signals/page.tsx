@@ -3314,23 +3314,13 @@ function BreadthSplitChart({ nifty100Bars, adBars }: {
     return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
   }, []);
 
-  // Aggregate daily A/D bars → monthly: sum advances & declines per month, ratio = sumAdv / max(sumDec,1)
-  const monthlyAdBars = useMemo(() => {
-    type M = { key: string; advances: number; declines: number };
-    const map = new Map<string, M>();
-    for (const b of adBars) {
-      const key = b.date.slice(0, 7) + "-01";
-      const m   = map.get(key);
-      if (m) { m.advances += b.advances; m.declines += b.declines; }
-      else   map.set(key, { key, advances: b.advances, declines: b.declines });
-    }
-    return Array.from(map.values())
-      .sort((a, b) => a.key.localeCompare(b.key))
-      .map((m) => ({ date: m.key, ratio: parseFloat((m.advances / Math.max(m.declines, 1)).toFixed(3)) }));
-  }, [adBars]);
+  // Use daily A/D bars directly
+  const dailyAdBars = useMemo(() =>
+    adBars.map((b) => ({ date: b.date, ratio: b.adRatio })),
+  [adBars]);
 
   useEffect(() => {
-    if (!niftyRef.current || !adRef.current || nifty100Bars.length < 2 || monthlyAdBars.length < 2) return;
+    if (!niftyRef.current || !adRef.current || nifty100Bars.length < 2 || dailyAdBars.length < 2) return;
     let removed = false;
 
     (async () => {
@@ -3376,17 +3366,17 @@ function BreadthSplitChart({ nifty100Bars, adBars }: {
         color: "#6366f1", lineWidth: 2,
         priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: true,
       });
-      adLineSeries.setData(monthlyAdBars.map((b) => ({
+      adLineSeries.setData(dailyAdBars.map((b) => ({
         time:  b.date as `${number}-${number}-${number}`,
         value: b.ratio,
       })));
 
       // Zone reference lines
       for (const { price, color, title, style } of [
-        { price: 1.5, color: "#059669", title: "Strong Bull  ", style: LineStyle.Dashed },
-        { price: 1.3, color: "#10b981", title: "Bull  ",        style: LineStyle.Dashed },
-        { price: 1.0, color: "#94a3b8", title: "Neutral  ",     style: LineStyle.Dotted },
-        { price: 0.8, color: "#ef4444", title: "Bear  ",        style: LineStyle.Solid  },
+        { price: 10.0, color: "#047857", title: "Bull > 10  ", style: LineStyle.Dashed },
+        { price: 7.0,  color: "#10b981", title: "Bull > 7  ",  style: LineStyle.Dashed },
+        { price: 0.1,  color: "#ef4444", title: "Bear < 0.1  ", style: LineStyle.Solid  },
+        { price: 0.05, color: "#7f1d1d", title: "Bear < 0.05  ", style: LineStyle.Solid  },
       ]) adLineSeries.createPriceLine({ price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title });
 
       niftyChart.timeScale().fitContent();
@@ -3415,7 +3405,7 @@ function BreadthSplitChart({ nifty100Bars, adBars }: {
     })();
 
     return () => { removed = true; cleanupRef.current?.(); cleanupRef.current = null; };
-  }, [nifty100Bars, monthlyAdBars]);
+  }, [nifty100Bars, dailyAdBars]);
 
   const DIVIDER_HIT = 9;
   const topH = `calc(${(splitRatio * 100).toFixed(3)}% - ${Math.ceil(DIVIDER_HIT / 2)}px)`;
@@ -3427,7 +3417,7 @@ function BreadthSplitChart({ nifty100Bars, adBars }: {
         <div ref={niftyRef} className="absolute inset-0" />
         <div className="absolute top-1.5 left-2 pointer-events-none z-10">
           <span className="text-[9px] font-semibold tracking-widest uppercase" style={{ color: "#9ca3af" }}>
-            Nifty 100 · Monthly
+            Nifty 100 · Daily
           </span>
         </div>
       </div>
@@ -3438,7 +3428,7 @@ function BreadthSplitChart({ nifty100Bars, adBars }: {
       <div className="relative flex-shrink-0" style={{ height: botH, overflow: "hidden" }}>
         <div ref={adRef} className="absolute inset-0" />
         <div className="absolute top-1.5 left-2 pointer-events-none z-10">
-          <span className="text-[9px] font-semibold tracking-widest uppercase" style={{ color: "#9ca3af" }}>A/D Ratio · Monthly</span>
+          <span className="text-[9px] font-semibold tracking-widest uppercase" style={{ color: "#9ca3af" }}>A/D Ratio · Daily</span>
         </div>
       </div>
     </div>
@@ -3503,9 +3493,10 @@ function WeeklySplitChart({ nifty100Bars, weeklyAdBars }: {
       })));
 
       for (const { price, color, title, style } of [
-        { price: 1.8, color: "#059669", title: "Bull  ",  style: LineStyle.Dashed },
-        { price: 1.0, color: "#94a3b8", title: "Neutral  ", style: LineStyle.Dotted },
-        { price: 0.5, color: "#ef4444", title: "Bear  ",  style: LineStyle.Solid  },
+        { price: 2.5, color: "#059669", title: "Bull > 2.5  ", style: LineStyle.Dashed },
+        { price: 1.8, color: "#10b981", title: "Bull > 1.8  ", style: LineStyle.Dashed },
+        { price: 0.5, color: "#f97316", title: "Bear < 0.5  ", style: LineStyle.Solid  },
+        { price: 0.3, color: "#ef4444", title: "Bear < 0.3  ", style: LineStyle.Solid  },
       ]) adSeries.createPriceLine({ price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title });
 
       niftyChart.timeScale().fitContent();
@@ -3564,20 +3555,23 @@ function WeeklySplitChart({ nifty100Bars, weeklyAdBars }: {
 // ─── A/D Modal (full-screen, ROC-style) ───────────────────────────────────────
 
 const AD_ZONES = [
-  { key: "bear"       as const, label: "< 0.8",       color: "#ef4444", bg: "#fef2f2"  },
-  { key: "bull"       as const, label: "1.3 – 1.5",   color: "#10b981", bg: "#f0fdf4"  },
-  { key: "strongBull" as const, label: "> 1.5",       color: "#059669", bg: "#dcfce7"  },
+  { key: "bear005" as const, label: "< 0.05",     color: "#7f1d1d", bg: "#fef2f2" },
+  { key: "bear01"  as const, label: "0.05 – 0.1", color: "#ef4444", bg: "#fef2f2" },
+  { key: "bull7"   as const, label: "7 – 10",     color: "#10b981", bg: "#f0fdf4" },
+  { key: "bull10"  as const, label: "> 10",        color: "#047857", bg: "#d1fae5" },
 ];
 
 const WEEKLY_AD_ZONES = [
-  { key: "bear" as const, label: "< 0.5", color: "#ef4444", bg: "#fef2f2" },
-  { key: "bull" as const, label: "> 1.8", color: "#059669", bg: "#ecfdf5" },
+  { key: "bear03" as const, label: "< 0.3",     color: "#ef4444", bg: "#fef2f2" },
+  { key: "bear05" as const, label: "0.3 – 0.5", color: "#f97316", bg: "#fff7ed" },
+  { key: "bull18" as const, label: "1.8 – 2.5", color: "#10b981", bg: "#f0fdf4" },
+  { key: "bull25" as const, label: "> 2.5",     color: "#059669", bg: "#dcfce7" },
 ];
 
 function AdModal({ data, onClose }: { data: BreadthResponse; onClose: () => void }) {
-  const [viewMode,      setViewMode]      = useState<"monthly" | "weekly">("monthly");
-  const [zoneTab,       setZoneTab]       = useState<"bear" | "bull" | "strongBull">("bear");
-  const [weeklyZoneTab, setWeeklyZoneTab] = useState<"bear" | "bull">("bear");
+  const [viewMode,      setViewMode]      = useState<"daily" | "weekly">("daily");
+  const [zoneTab,       setZoneTab]       = useState<"bear005" | "bear01" | "bull7" | "bull10">("bear005");
+  const [weeklyZoneTab, setWeeklyZoneTab] = useState<"bear03" | "bear05" | "bull18" | "bull25">("bear03");
 
   const statusColors: Record<string, string> = {
     "Strong Bull": "#059669", "Bull": "#10b981",
@@ -3586,8 +3580,8 @@ function AdModal({ data, onClose }: { data: BreadthResponse; onClose: () => void
   const sc     = statusColors[data.breadthStatus] ?? "#94a3b8";
   const trendC = data.breadthTrend === "Improving" ? "#10b981" : data.breadthTrend === "Deteriorating" ? "#ef4444" : "#d97706";
 
-  const activeZoneCfg     = AD_ZONES.find((z) => z.key === zoneTab)!;
-  const activeStats        = data.zoneStats[zoneTab];
+  const activeZoneCfg  = AD_ZONES.find((z) => z.key === zoneTab)!;
+  const activeStats    = data.zoneStats[zoneTab];
   const activeWeeklyZone   = WEEKLY_AD_ZONES.find((z) => z.key === weeklyZoneTab)!;
   const activeWeeklyStats  = data.weeklyZoneStats[weeklyZoneTab];
   const weeklyZoneEvents   = data.weeklyEvents.filter((e) => e.zoneType === weeklyZoneTab);
@@ -3659,12 +3653,12 @@ function AdModal({ data, onClose }: { data: BreadthResponse; onClose: () => void
         <div className="h-[45vh] md:h-auto md:flex-1 flex-shrink-0 md:flex-shrink flex flex-col px-3 sm:px-5 pt-4 pb-3 min-w-0">
           <div className="flex items-center justify-between mb-3 flex-shrink-0">
             <p className="text-[10px] font-black tracking-widest uppercase text-slate-400">
-              {viewMode === "monthly"
-                ? "Nifty 100 × A/D Ratio · Monthly · Zone Analysis"
+              {viewMode === "daily"
+                ? "Nifty 100 × A/D Ratio · Daily · Zone Analysis"
                 : "Nifty 100 × A/D Ratio · Weekly · Zone Analysis"}
             </p>
             <div className="flex gap-1">
-              {(["monthly", "weekly"] as const).map((m) => (
+              {(["daily", "weekly"] as const).map((m) => (
                 <button key={m} onClick={() => setViewMode(m)}
                   className="px-2.5 py-1 rounded-lg text-[10px] font-black transition-all capitalize"
                   style={viewMode === m
@@ -3676,36 +3670,35 @@ function AdModal({ data, onClose }: { data: BreadthResponse; onClose: () => void
             </div>
           </div>
           <div className="flex-1 min-h-0 rounded-xl overflow-hidden border border-slate-100">
-            {viewMode === "monthly"
+            {viewMode === "daily"
               ? <BreadthSplitChart nifty100Bars={data.nifty100Bars} adBars={data.bars} />
               : <WeeklySplitChart  nifty100Bars={data.weeklyNifty100Bars} weeklyAdBars={data.weeklyBars} />}
           </div>
           {/* Legend */}
           <div className="flex-shrink-0 mt-2 flex items-center gap-3 sm:gap-4 flex-wrap">
-            {viewMode === "monthly" ? (
+            {viewMode === "daily" ? (
               <>
                 {[
-                  { color: "#059669", label: "> 1.5  Strong Bull" },
-                  { color: "#10b981", label: "1.3–1.5  Bull" },
-                  { color: "#94a3b8", label: "0.8–1.3  Neutral" },
-                  { color: "#ef4444", label: "< 0.8  Bear" },
+                  { color: "#047857", label: "> 10  Bull" },
+                  { color: "#10b981", label: "7–10  Bull" },
+                  { color: "#94a3b8", label: "0.1–7  Neutral" },
+                  { color: "#ef4444", label: "< 0.1  Bear" },
+                  { color: "#7f1d1d", label: "< 0.05  Extreme Bear" },
                 ].map(({ color, label }) => (
                   <div key={label} className="flex items-center gap-1.5">
                     <div className="w-3 h-2.5 rounded-sm" style={{ background: color }} />
                     <span className="text-[9px] text-slate-500 font-bold">{label}</span>
                   </div>
                 ))}
-                <div className="flex items-center gap-1.5">
-                  <div className="w-4 h-0.5 rounded" style={{ background: "#6366f1" }} />
-                  <span className="text-[9px] text-slate-500 font-bold">20d MA</span>
-                </div>
               </>
             ) : (
               <>
                 {[
-                  { color: "#059669", label: "> 1.8  Bull" },
+                  { color: "#059669", label: "> 2.5  Bull" },
+                  { color: "#10b981", label: "1.8–2.5  Bull" },
                   { color: "#94a3b8", label: "0.5–1.8  Neutral" },
-                  { color: "#ef4444", label: "< 0.5  Bear" },
+                  { color: "#f97316", label: "< 0.5  Bear" },
+                  { color: "#ef4444", label: "< 0.3  Bear" },
                 ].map(({ color, label }) => (
                   <div key={label} className="flex items-center gap-1.5">
                     <div className="w-3 h-2.5 rounded-sm" style={{ background: color }} />
@@ -3765,9 +3758,9 @@ function AdModal({ data, onClose }: { data: BreadthResponse; onClose: () => void
             </div>
           </div>
 
-          {viewMode === "monthly" ? (
+          {viewMode === "daily" ? (
             <>
-              {/* Monthly zone forward returns */}
+              {/* Daily zone forward returns */}
               <div className="p-4 border-b border-slate-100">
                 <p className="text-[9px] font-black tracking-widest uppercase text-slate-400 mb-2.5">After A/D · Forward Returns</p>
                 <div className="flex gap-1 mb-3 flex-wrap">
@@ -3783,10 +3776,11 @@ function AdModal({ data, onClose }: { data: BreadthResponse; onClose: () => void
                 </div>
                 {activeStats ? (
                   <div className="space-y-2.5">
+                    <WinRateBar wr={activeStats.winRate15d} avg={activeStats.avgRet15d} label="15 Days"   />
+                    <WinRateBar wr={activeStats.winRate1m}  avg={activeStats.avgRet1m}  label="1 Month"   />
+                    <WinRateBar wr={activeStats.winRate2m}  avg={activeStats.avgRet2m}  label="2 Months"  />
                     <WinRateBar wr={activeStats.winRate3m}  avg={activeStats.avgRet3m}  label="3 Months"  />
                     <WinRateBar wr={activeStats.winRate6m}  avg={activeStats.avgRet6m}  label="6 Months"  />
-                    <WinRateBar wr={activeStats.winRate12m} avg={activeStats.avgRet12m} label="12 Months" />
-                    <WinRateBar wr={activeStats.winRate18m} avg={activeStats.avgRet18m} label="18 Months" />
                     <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
                       <span className="text-[9px] text-slate-400 font-bold">{activeStats.totalEvents} events · Avg max drawdown</span>
                       <span className="text-[10px] font-black" style={{ color: "#ef4444" }}>{activeStats.avgMaxDrawdown.toFixed(1)}%</span>
@@ -3797,7 +3791,7 @@ function AdModal({ data, onClose }: { data: BreadthResponse; onClose: () => void
                 )}
               </div>
 
-              {/* Monthly event list */}
+              {/* Daily event list */}
               <div className="p-4">
                 <p className="text-[9px] font-black tracking-widest uppercase text-slate-400 mb-2.5">
                   {activeZoneCfg.label} Events ({zoneEvents.length})
@@ -3818,8 +3812,9 @@ function AdModal({ data, onClose }: { data: BreadthResponse; onClose: () => void
                         </div>
                         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px]">
                           {([
-                            { label: "3M", val: e.ret3m }, { label: "6M",  val: e.ret6m },
-                            { label: "12M", val: e.ret12m }, { label: "18M", val: e.ret18m },
+                            { label: "15D", val: e.ret15d }, { label: "1M", val: e.ret1m },
+                            { label: "2M",  val: e.ret2m  }, { label: "3M", val: e.ret3m },
+                            { label: "6M",  val: e.ret6m  },
                           ] as { label: string; val: number | null }[]).map(({ label, val }) => (
                             <div key={label} className="flex items-center justify-between">
                               <span className="text-slate-400 font-bold">{label}</span>
@@ -3857,6 +3852,7 @@ function AdModal({ data, onClose }: { data: BreadthResponse; onClose: () => void
                     <WinRateBar wr={activeWeeklyStats.winRate1m}  avg={activeWeeklyStats.avgRet1m}  label="1 Month" />
                     <WinRateBar wr={activeWeeklyStats.winRate2m}  avg={activeWeeklyStats.avgRet2m}  label="2 Months" />
                     <WinRateBar wr={activeWeeklyStats.winRate3m}  avg={activeWeeklyStats.avgRet3m}  label="3 Months" />
+                    <WinRateBar wr={activeWeeklyStats.winRate6m}  avg={activeWeeklyStats.avgRet6m}  label="6 Months" />
                     <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
                       <span className="text-[9px] text-slate-400 font-bold">{activeWeeklyStats.totalEvents} events · Avg max drawdown</span>
                       <span className="text-[10px] font-black" style={{ color: "#ef4444" }}>{activeWeeklyStats.avgMaxDrawdown.toFixed(1)}%</span>
@@ -3890,6 +3886,7 @@ function AdModal({ data, onClose }: { data: BreadthResponse; onClose: () => void
                           {([
                             { label: "15D", val: e.ret15d }, { label: "1M",  val: e.ret1m  },
                             { label: "2M",  val: e.ret2m  }, { label: "3M",  val: e.ret3m  },
+                            { label: "6M",  val: e.ret6m  },
                           ] as { label: string; val: number | null }[]).map(({ label, val }) => (
                             <div key={label} className="flex items-center justify-between">
                               <span className="text-slate-400 font-bold">{label}</span>
@@ -3933,7 +3930,7 @@ function AdIntelligenceCard() {
   const decPct  = total > 0 ? (data.currentDeclines / total) * 100 : 50;
   const unchPct = total > 0 ? (data.currentUnchanged / total) * 100 : 0;
 
-  const bearStats = data.zoneStats.bear;
+  const bearStats = data.zoneStats.bear005;
 
   return (
     <>
@@ -3993,10 +3990,10 @@ function AdIntelligenceCard() {
           {bearStats && (
             <div className="flex-shrink-0 px-3 py-1.5 rounded-lg border"
               style={{ borderColor: "#ef444430", background: "#ef444408" }}>
-              <p className="text-[8px] font-black text-slate-400 mb-0.5">{bearStats.totalEvents} bear events · 12M avg</p>
+              <p className="text-[8px] font-black text-slate-400 mb-0.5">{bearStats.totalEvents} bear events · 3M avg</p>
               <p className="text-xs font-black tabular-nums"
-                style={{ color: bearStats.avgRet12m >= 0 ? "#10b981" : "#ef4444" }}>
-                {bearStats.avgRet12m >= 0 ? "+" : ""}{bearStats.avgRet12m}%
+                style={{ color: bearStats.avgRet3m >= 0 ? "#10b981" : "#ef4444" }}>
+                {bearStats.avgRet3m >= 0 ? "+" : ""}{bearStats.avgRet3m}%
               </p>
             </div>
           )}
@@ -4029,8 +4026,8 @@ function AdIntelligenceCard() {
 
 // ─── DMA200 Split Chart ───────────────────────────────────────────────────────
 
-function Dma200SplitChart({ nifty100Bars, dmaBars }: {
-  nifty100Bars: Dma200Response["nifty100Bars"];
+function Dma200SplitChart({ nifty500Bars, dmaBars }: {
+  nifty500Bars: Dma200Response["nifty500Bars"];
   dmaBars:      Dma200Bar[];
 }) {
   const niftyRef     = useRef<HTMLDivElement>(null);
@@ -4062,7 +4059,7 @@ function Dma200SplitChart({ nifty100Bars, dmaBars }: {
   }, [dmaBars]);
 
   useEffect(() => {
-    if (!niftyRef.current || !dmaRef.current || nifty100Bars.length < 2 || monthlyDmaBars.length < 2) return;
+    if (!niftyRef.current || !dmaRef.current || nifty500Bars.length < 2 || monthlyDmaBars.length < 2) return;
     let removed = false;
 
     (async () => {
@@ -4090,7 +4087,7 @@ function Dma200SplitChart({ nifty100Bars, dmaBars }: {
         wickUpColor: "#10b981", wickDownColor: "#ef4444",
         priceLineVisible: false,
       });
-      niftySeries.setData(nifty100Bars.map((b) => ({
+      niftySeries.setData(nifty500Bars.map((b) => ({
         time: b.date as `${number}-${number}-${number}`,
         open: b.open, high: b.high, low: b.low, close: b.close,
       })));
@@ -4144,7 +4141,7 @@ function Dma200SplitChart({ nifty100Bars, dmaBars }: {
     })();
 
     return () => { removed = true; cleanupRef.current?.(); cleanupRef.current = null; };
-  }, [nifty100Bars, monthlyDmaBars]);
+  }, [nifty500Bars, monthlyDmaBars]);
 
   const DIVIDER_HIT = 9;
   const topH = `calc(${(splitRatio * 100).toFixed(3)}% - ${Math.ceil(DIVIDER_HIT / 2)}px)`;
@@ -4253,10 +4250,10 @@ function Dma200Modal({ data, onClose }: { data: Dma200Response; onClose: () => v
         {/* ── Left: Chart ── */}
         <div className="h-[45vh] md:h-auto md:flex-1 flex-shrink-0 md:flex-shrink flex flex-col px-3 sm:px-5 pt-4 pb-3 min-w-0">
           <p className="text-[10px] font-black tracking-widest uppercase text-slate-400 mb-3 flex-shrink-0">
-            Nifty 100 × % Above 200 DMA · Monthly · Zone Analysis
+            Nifty 500 × % Above 200 DMA · Monthly · Zone Analysis
           </p>
           <div className="flex-1 min-h-0 rounded-xl overflow-hidden border border-slate-100">
-            <Dma200SplitChart nifty100Bars={data.nifty100Bars} dmaBars={data.bars} />
+            <Dma200SplitChart nifty500Bars={data.nifty500Bars} dmaBars={data.bars} />
           </div>
           {/* Legend */}
           <div className="flex-shrink-0 mt-2 flex items-center gap-3 sm:gap-4 flex-wrap">
@@ -4372,7 +4369,7 @@ function Dma200Modal({ data, onClose }: { data: Dma200Response; onClose: () => v
                   <div key={i} className="flex items-start justify-between gap-2 py-1.5 border-b border-slate-50 last:border-0">
                     <div>
                       <p className="text-[10px] font-black text-slate-700">{e.date.slice(0, 7)}</p>
-                      <p className="text-[9px] text-slate-400">{e.pctAbove.toFixed(1)}% above · ₹{Math.round(e.nifty100Close).toLocaleString("en-IN")}</p>
+                      <p className="text-[9px] text-slate-400">{e.pctAbove.toFixed(1)}% above · ₹{Math.round(e.nifty500Close).toLocaleString("en-IN")} N500</p>
                     </div>
                     <div className="text-right flex-shrink-0 space-y-0.5">
                       {e.ret15d !== null && (
@@ -4438,7 +4435,7 @@ function Dma200IntelligenceCard() {
               <TrendingUp size={16} style={{ color: sc }} />
             </div>
             <div>
-              <p className="text-[8px] font-black tracking-widest uppercase text-slate-400">% Above 200 DMA · Nifty 100</p>
+              <p className="text-[8px] font-black tracking-widest uppercase text-slate-400">% Above 200 DMA · Nifty 500</p>
               <div className="flex items-baseline gap-1.5 mt-0.5">
                 <span className="text-xl font-black tabular-nums leading-none" style={{ color: sc }}>
                   {data.currentPctAbove.toFixed(1)}%
@@ -4500,10 +4497,10 @@ function Dma200IntelligenceCard() {
 
 function LcSplitChart({
   lcBars,
-  nifty100Bars,
+  nifty500Bars,
 }: {
   lcBars:        LcBar[];
-  nifty100Bars:  { date: string; open: number; high: number; low: number; close: number }[];
+  nifty500Bars:  { date: string; open: number; high: number; low: number; close: number }[];
 }) {
   const niftyRef    = useRef<HTMLDivElement>(null);
   const lcRef       = useRef<HTMLDivElement>(null);
@@ -4528,7 +4525,7 @@ function LcSplitChart({
   }, []);
 
   useEffect(() => {
-    if (!niftyRef.current || !lcRef.current || nifty100Bars.length < 2 || lcBars.length < 2) return;
+    if (!niftyRef.current || !lcRef.current || nifty500Bars.length < 2 || lcBars.length < 2) return;
     let removed = false;
 
     (async () => {
@@ -4556,7 +4553,7 @@ function LcSplitChart({
         wickUpColor: "#10b981", wickDownColor: "#ef4444",
         priceLineVisible: false,
       });
-      niftySeries.setData(nifty100Bars.map((b) => ({
+      niftySeries.setData(nifty500Bars.map((b) => ({
         time: b.date as `${number}-${number}-${number}`,
         open: b.open, high: b.high, low: b.low, close: b.close,
       })));
@@ -4609,7 +4606,7 @@ function LcSplitChart({
     })();
 
     return () => { removed = true; cleanupRef.current?.(); cleanupRef.current = null; };
-  }, [nifty100Bars, lcBars]);
+  }, [nifty500Bars, lcBars]);
 
   const DIVIDER_HIT = 9;
   const topH = `calc(${(splitRatio * 100).toFixed(3)}% - ${Math.ceil(DIVIDER_HIT / 2)}px)`;
@@ -4620,7 +4617,7 @@ function LcSplitChart({
       <div className="relative flex-shrink-0" style={{ height: topH, overflow: "hidden" }}>
         <div ref={niftyRef} className="absolute inset-0" />
         <div className="absolute top-1.5 left-2 pointer-events-none z-10">
-          <span className="text-[9px] font-semibold tracking-widest uppercase" style={{ color: "#9ca3af" }}>Nifty 100 · Daily</span>
+          <span className="text-[9px] font-semibold tracking-widest uppercase" style={{ color: "#9ca3af" }}>Nifty 500 · Daily</span>
         </div>
       </div>
       <div className="relative flex-shrink-0 cursor-row-resize z-20" style={{ height: DIVIDER_HIT }}
@@ -4640,14 +4637,16 @@ function LcSplitChart({
 // ─── LC Zone config ───────────────────────────────────────────────────────────
 
 const LC_ZONES = [
-  { key: "extremePanic" as const, label: "≥ 2.5%",   color: "#dc2626", bg: "#fef2f2" },
-  { key: "highStress"   as const, label: "1%–2.5%",  color: "#f97316", bg: "#fff7ed" },
+  { key: "extremePanic25" as const, label: "≥ 25%",    color: "#1c0606", bg: "#fef2f2" },
+  { key: "extremePanic10" as const, label: "10%–25%",  color: "#450a0a", bg: "#fef2f2" },
+  { key: "extremePanic5"  as const, label: "5%–10%",   color: "#7f1d1d", bg: "#fef2f2" },
+  { key: "extremePanic"   as const, label: "2.5%–5%",  color: "#dc2626", bg: "#fef2f2" },
 ];
 
 // ─── LC Modal (full-screen) ────────────────────────────────────────────────────
 
 function LcModal({ data, onClose }: { data: LcResponse; onClose: () => void }) {
-  const [zoneTab, setZoneTab] = useState<"extremePanic" | "highStress">("extremePanic");
+  const [zoneTab, setZoneTab] = useState<"extremePanic25" | "extremePanic10" | "extremePanic5" | "extremePanic">("extremePanic25");
 
   const LC_STATUS_COLORS: Record<string, string> = {
     "Extreme Panic": "#dc2626", "High Stress": "#f97316",
@@ -4685,7 +4684,7 @@ function LcModal({ data, onClose }: { data: LcResponse; onClose: () => void }) {
               style={{ background: sc, color: "#fff" }}>{data.lcStatus}</span>
           </div>
           <p className="hidden sm:block text-xs text-slate-500">
-            {data.currentLcCount} of {data.currentTotal} Nifty 100 stocks hit Lower Circuit on {data.currentDate}.
+            {data.currentLcCount} of {data.currentTotal} Nifty 500 stocks hit Lower Circuit on {data.currentDate}.
             When this spike, markets are in acute panic — historically a contrarian buy signal.
           </p>
         </div>
@@ -4716,7 +4715,7 @@ function LcModal({ data, onClose }: { data: LcResponse; onClose: () => void }) {
 
         {/* Chart (left) */}
         <div className="flex-1 min-w-0 overflow-hidden">
-          <LcSplitChart lcBars={data.bars} nifty100Bars={data.nifty100Bars} />
+          <LcSplitChart lcBars={data.bars} nifty500Bars={data.nifty500Bars} />
         </div>
 
         {/* Right panel */}
@@ -4748,10 +4747,11 @@ function LcModal({ data, onClose }: { data: LcResponse; onClose: () => void }) {
 
             {activeStats ? (
               <div className="space-y-2.5">
-                <WinRateBar wr={activeStats.winRate5d}  avg={activeStats.avgRet5d}  label="5 Days"  />
-                <WinRateBar wr={activeStats.winRate10d} avg={activeStats.avgRet10d} label="10 Days" />
-                <WinRateBar wr={activeStats.winRate20d} avg={activeStats.avgRet20d} label="20 Days" />
-                <WinRateBar wr={activeStats.winRate1m}  avg={activeStats.avgRet1m}  label="1 Month" />
+                <WinRateBar wr={activeStats.winRate5d}  avg={activeStats.avgRet5d}  label="5 Days"   />
+                <WinRateBar wr={activeStats.winRate10d} avg={activeStats.avgRet10d} label="10 Days"  />
+                <WinRateBar wr={activeStats.winRate20d} avg={activeStats.avgRet20d} label="20 Days"  />
+                <WinRateBar wr={activeStats.winRate1m}  avg={activeStats.avgRet1m}  label="1 Month"  />
+                <WinRateBar wr={activeStats.winRate3m}  avg={activeStats.avgRet3m}  label="3 Months" />
                 <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
                   <span className="text-[9px] text-slate-400">Avg Max Drawdown</span>
                   <span className="text-[11px] font-black text-red-500">
@@ -4776,7 +4776,7 @@ function LcModal({ data, onClose }: { data: LcResponse; onClose: () => void }) {
                   <div key={i} className="flex items-start justify-between gap-2 py-1.5 border-b border-slate-50 last:border-0">
                     <div>
                       <p className="text-[10px] font-black text-slate-700">{e.date}</p>
-                      <p className="text-[9px] text-slate-400">{e.pctLc.toFixed(1)}% LC · ₹{Math.round(e.nifty100Close).toLocaleString("en-IN")}</p>
+                      <p className="text-[9px] text-slate-400">{e.pctLc.toFixed(1)}% LC · ₹{Math.round(e.nifty500Close).toLocaleString("en-IN")} N500</p>
                     </div>
                     <div className="text-right flex-shrink-0 space-y-0.5">
                       {e.ret5d !== null && (
@@ -4784,9 +4784,14 @@ function LcModal({ data, onClose }: { data: LcResponse; onClose: () => void }) {
                           {e.ret5d >= 0 ? "+" : ""}{e.ret5d}% <span className="text-slate-400 font-normal">5d</span>
                         </p>
                       )}
-                      {e.ret1m !== null ? (
+                      {e.ret1m !== null && (
                         <p className="text-[9px] font-black" style={{ color: e.ret1m >= 0 ? "#10b981" : "#ef4444" }}>
                           {e.ret1m >= 0 ? "+" : ""}{e.ret1m}% <span className="text-slate-400 font-normal">1m</span>
+                        </p>
+                      )}
+                      {e.ret3m !== null ? (
+                        <p className="text-[9px] font-black" style={{ color: e.ret3m >= 0 ? "#10b981" : "#ef4444" }}>
+                          {e.ret3m >= 0 ? "+" : ""}{e.ret3m}% <span className="text-slate-400 font-normal">3m</span>
                         </p>
                       ) : <p className="text-[9px] text-slate-300">—</p>}
                     </div>
@@ -4814,7 +4819,7 @@ function LcIntelligenceCard() {
     "Elevated":      "#d97706", "Normal":      "#10b981",
   };
   const sc         = LC_STATUS_COLORS[data.lcStatus] ?? "#10b981";
-  const panicStats = data.zoneStats.extremePanic;
+  const panicStats = data.zoneStats.extremePanic25 ?? data.zoneStats.extremePanic10 ?? data.zoneStats.extremePanic5 ?? data.zoneStats.extremePanic;
 
   return (
     <>
@@ -4840,7 +4845,7 @@ function LcIntelligenceCard() {
               <ArrowDownRight size={16} style={{ color: sc }} />
             </div>
             <div>
-              <p className="text-[8px] font-black tracking-widest uppercase text-slate-400">% Hitting LC · Nifty 100</p>
+              <p className="text-[8px] font-black tracking-widest uppercase text-slate-400">% Hitting LC · Nifty 500</p>
               <div className="flex items-baseline gap-1.5 mt-0.5">
                 <span className="text-xl font-black tabular-nums leading-none" style={{ color: sc }}>
                   {data.currentPctLc.toFixed(1)}%

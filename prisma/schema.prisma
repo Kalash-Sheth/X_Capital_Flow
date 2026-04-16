@@ -219,6 +219,39 @@ enum InsightType {
   SECTOR_ANALYSIS
 }
 
+// ─── Nifty 500 Constituent Stocks ─────────────────────────────────────────────
+
+model Nifty500Stock {
+  id        String          @id @default(cuid())
+  symbol    String          @unique   // NSE symbol e.g. RELIANCE
+  ticker    String          @unique   // Yahoo Finance ticker e.g. RELIANCE.NS
+  name      String
+  industry  String?
+  isin      String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  prices    Nifty500Price[]
+
+  @@index([symbol])
+  @@index([industry])
+}
+
+model Nifty500Price {
+  id      String        @id @default(cuid())
+  stockId String
+  date    DateTime      @db.Date
+  open    Float
+  high    Float
+  low     Float
+  close   Float
+  volume  BigInt?
+  stock   Nifty500Stock @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  @@unique([stockId, date])
+  @@index([stockId, date])
+  @@index([date])
+}
+
 // ─── FII / DII Daily Flow ─────────────────────────────────────────────────────
 
 model FiiDiiFlow {
