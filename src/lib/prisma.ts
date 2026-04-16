@@ -2,18 +2,17 @@ import { PrismaClient } from '@prisma/client';
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
-// PgBouncer session-mode has a limited pool (~15 connections on Supabase free tier).
-// connection_limit=2  — keeps total connections low across concurrent API routes.
-// pool_timeout=30     — wait up to 30s for a free slot before erroring.
-// pgbouncer=true      — disables Prisma features incompatible with PgBouncer (advisory locks etc.)
+// Production: DATABASE_URL must point to Supabase transaction pooler (port 6543).
+// pgbouncer=true  — disables Prisma features incompatible with PgBouncer (advisory locks, etc.)
+// connection_limit — per-instance cap; transaction pooler handles actual multiplexing.
 function buildDbUrl(): string | undefined {
   const base = process.env.DATABASE_URL;
   if (!base) return undefined;
   try {
     const url = new URL(base);
-    url.searchParams.set('connection_limit', '5');
-    url.searchParams.set('pool_timeout', '60');
-    url.searchParams.set('pgbouncer', 'true');
+    if (!url.searchParams.has('pgbouncer'))        url.searchParams.set('pgbouncer', 'true');
+    if (!url.searchParams.has('connection_limit')) url.searchParams.set('connection_limit', '5');
+    if (!url.searchParams.has('pool_timeout'))     url.searchParams.set('pool_timeout', '30');
     return url.toString();
   } catch {
     return base;
